@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users: only authenticated user can read their own profile; admin logic allowed to read others
+    match /users/{userId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == "admin@admin.es");
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Expenses
+    match /expenses/{docId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.token.email == "admin@admin.es");
+      // Optionally allow update/delete only by owner
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+  }
+}
