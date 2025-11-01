@@ -1,19 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users: only authenticated user can read their own profile; admin logic allowed to read others
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users: only authenticated user can read their own profile; admin can read all
     match /users/{userId} {
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == "admin@admin.es");
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow update, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Expenses
+    // Expenses: users can create their own, read their own or admin can read all
     match /expenses/{docId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.token.email == "admin@admin.es");
-      // Optionally allow update/delete only by owner
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null && (request.auth.uid == resource.data.uid || isAdmin());
+      allow list: if request.auth != null;
+      allow update, delete: if request.auth != null && (request.auth.uid == resource.data.uid || isAdmin());
     }
   }
 }
