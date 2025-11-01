@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 // src/pages/Listados.jsx
 import React, { useEffect, useState } from "react";
 import { queryExpenses } from "../firebase";
