@@ -7,12 +7,14 @@ import Listados from "./pages/Listados";
 import Productos from "./pages/Productos";
 import { auth, fetchUserDoc, logout } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { usePWAInstall } from "./hooks/usePWAInstall";
 
 export default function App() {
   const [user, setUser] = useState(null); // firebase user
   const [profile, setProfile] = useState(null); // user doc from firestore
   const [loadingAuth, setLoadingAuth] = useState(true);
   const nav = useNavigate();
+  const { isInstallable, isInstalled, installPWA } = usePWAInstall();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -48,12 +50,49 @@ export default function App() {
 
   if (loadingAuth) return <div>Comprobando autenticación...</div>;
 
+  const handleInstall = async () => {
+    const installed = await installPWA();
+    if (installed) {
+      alert('¡App instalada correctamente!');
+    }
+  };
+
   return (
     <div>
+      {/* Banner de instalación PWA */}
+      {isInstallable && !isInstalled && (
+        <div style={{ 
+          background: '#1976d2', 
+          color: '#fff', 
+          padding: '12px', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          fontSize: '14px'
+        }}>
+          <span>📱 Instala la app en tu dispositivo</span>
+          <button 
+            onClick={handleInstall}
+            style={{ 
+              background: '#fff', 
+              color: '#1976d2', 
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Instalar
+          </button>
+        </div>
+      )}
+      
       <header style={{ display: "flex", justifyContent: "space-between", padding: 8 }}>
         <div>
           {user ? <strong>{user.email}</strong> : <span>No autenticado</span>}
           {profile?.name ? <span> — {profile.name}</span> : null}
+          {isInstalled && <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>📱 PWA</span>}
         </div>
         <div>
           {user ? <button onClick={handleLogout}>Cerrar sesión</button> : null}

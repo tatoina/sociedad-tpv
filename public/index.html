@@ -2,14 +2,33 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+    
+    <!-- PWA Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Theme Color -->
     <meta name="theme-color" content="#1976d2" />
-    <!-- Apple -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1976d2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1976d2" />
+    
+    <!-- Primary Meta Tags -->
     <title>Sociedad - TPV</title>
+    <meta name="title" content="Sociedad - TPV" />
+    <meta name="description" content="TPV para la sociedad — control de consumos" />
+    
+    <!-- Apple Touch Icon & PWA -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TPV" />
+    
+    <!-- Android PWA -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/icons/icon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="%PUBLIC_URL%/icons/icon-512x512.png" />
   </head>
   <body>
     <noscript>Necesitas habilitar JavaScript para usar esta app.</noscript>
