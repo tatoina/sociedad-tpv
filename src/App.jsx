@@ -5,6 +5,7 @@ import Menu from "./pages/Menu";
 import TPV from "./pages/Tpv";
 import Listados from "./pages/Listados";
 import Productos from "./pages/Productos";
+import Usuarios from "./pages/Usuarios";
 import { auth, fetchUserDoc, logout } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
@@ -88,15 +89,37 @@ export default function App() {
         </div>
       )}
       
-      <header style={{ display: "flex", justifyContent: "space-between", padding: 8 }}>
-        <div>
-          {user ? <strong>{user.email}</strong> : <span>No autenticado</span>}
-          {profile?.name ? <span> — {profile.name}</span> : null}
-          {isInstalled && <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>📱 PWA</span>}
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {user ? (
+            <>
+              <strong>{user.email}</strong>
+              {profile?.name && <span style={{ color: '#666' }}>— {profile.name}</span>}
+              {isInstalled && <span style={{ fontSize: 12, color: '#666' }}>📱 PWA</span>}
+              <button 
+                onClick={handleLogout}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: '13px',
+                  color: '#666'
+                }}
+                title="Cerrar sesión"
+              >
+                🔑
+              </button>
+            </>
+          ) : (
+            <span>No autenticado</span>
+          )}
         </div>
-        <div>
-          {user ? <button onClick={handleLogout}>Cerrar sesión</button> : null}
-        </div>
+        <div></div>
       </header>
 
       <Routes>
@@ -112,8 +135,9 @@ export default function App() {
 
         <Route path="/listados" element={user ? <Listados user={user} profile={profile} /> : <Navigate to="/login" replace />} />
 
-        {/* Página de gestión de productos para admin */}
+        {/* Páginas de gestión para admin */}
         <Route path="/productos" element={user && profile?.isAdmin ? <Productos user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
+        <Route path="/usuarios" element={user && profile?.isAdmin ? <Usuarios user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

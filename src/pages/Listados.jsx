@@ -130,31 +130,91 @@ export default function Listados({ user, profile }) {
     }));
   };
 
+  const exportToCSV = () => {
+    if (groupedData.length === 0) {
+      alert("No hay datos para exportar");
+      return;
+    }
+
+    // Crear el contenido CSV
+    const headers = ["Mes", "Usuario", "Número de Gastos", "Total (€)"];
+    const rows = groupedData.map(group => [
+      formatMonth(group.month),
+      group.user,
+      group.count,
+      group.total.toFixed(2)
+    ]);
+
+    // Convertir a formato CSV
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    // Crear el blob y descargar
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    const fileName = `listados_${start || 'sin-fecha'}_${end || 'sin-fecha'}.csv`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const groupedData = groupByMonthAndUser();
 
   return (
     <div style={{ padding: 12 }}>
       <h3 style={{ marginBottom: 12 }}>Listados</h3>
 
-      <form onSubmit={load} style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 520 }}>
-        <label style={{ fontSize: 14 }}>Desde (fecha y hora)</label>
-        <input
-          type="datetime-local"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          className="full-input"
-        />
+      <button 
+        className="btn-primary" 
+        onClick={exportToCSV}
+        disabled={groupedData.length === 0}
+        style={{ marginBottom: 12, fontSize: 14, padding: '8px 12px' }}
+      >
+        📊 Exportar a CSV
+      </button>
 
-        <label style={{ fontSize: 14 }}>Hasta (fecha y hora)</label>
-        <input
-          type="datetime-local"
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          className="full-input"
-        />
+      <form onSubmit={load} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13 }}>Desde</label>
+          <input
+            type="datetime-local"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            style={{ 
+              padding: '8px', 
+              border: '1px solid #ddd', 
+              borderRadius: '8px', 
+              fontSize: '14px',
+              width: '100%'
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13 }}>Hasta</label>
+          <input
+            type="datetime-local"
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
+            style={{ 
+              padding: '8px', 
+              border: '1px solid #ddd', 
+              borderRadius: '8px', 
+              fontSize: '14px',
+              width: '100%'
+            }}
+          />
+        </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <button className="btn-primary" type="submit">Buscar</button>
+          <button className="btn-primary" type="submit" style={{ flex: 1 }}>Buscar</button>
           <button
             type="button"
             className="btn-ghost"
@@ -164,6 +224,7 @@ export default function Listados({ user, profile }) {
               setResults([]);
               setExpandedDetails({});
             }}
+            style={{ flex: 1 }}
           >
             Limpiar
           </button>
@@ -177,14 +238,14 @@ export default function Listados({ user, profile }) {
               Total de gastos: {results.length} | Agrupaciones: {groupedData.length}
             </div>
             <div style={{ overflowX: "auto" }}>
-              <table className="table-responsive" style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table className="table-responsive" style={{ width: "auto", borderCollapse: "collapse", whiteSpace: "nowrap" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: 8 }}>Mes</th>
-                    <th style={{ textAlign: "left", padding: 8 }}>Usuario</th>
-                    <th style={{ textAlign: "center", padding: 8 }}>Gastos</th>
-                    <th style={{ textAlign: "right", padding: 8 }}>Total</th>
-                    <th style={{ textAlign: "center", padding: 8 }}>Detalle</th>
+                    <th style={{ textAlign: "left", padding: "8px 16px", whiteSpace: "nowrap" }}>Mes</th>
+                    <th style={{ textAlign: "left", padding: "8px 16px", whiteSpace: "nowrap" }}>Usuario</th>
+                    <th style={{ textAlign: "center", padding: "8px 16px", whiteSpace: "nowrap" }}>Gastos</th>
+                    <th style={{ textAlign: "right", padding: "8px 16px", whiteSpace: "nowrap" }}>Total</th>
+                    <th style={{ textAlign: "center", padding: "8px 16px", whiteSpace: "nowrap" }}>Detalle</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,13 +256,13 @@ export default function Listados({ user, profile }) {
                     return (
                       <React.Fragment key={key}>
                         <tr style={{ borderTop: "2px solid #ddd", backgroundColor: "#f9f9f9" }}>
-                          <td style={{ padding: 8, fontWeight: "500" }}>{formatMonth(group.month)}</td>
-                          <td style={{ padding: 8 }}>{group.user}</td>
-                          <td style={{ padding: 8, textAlign: "center" }}>{group.count}</td>
-                          <td style={{ padding: 8, textAlign: "right", fontWeight: "600" }}>
+                          <td style={{ padding: "8px 16px", fontWeight: "500", whiteSpace: "nowrap" }}>{formatMonth(group.month)}</td>
+                          <td style={{ padding: "8px 16px", whiteSpace: "nowrap" }}>{group.user}</td>
+                          <td style={{ padding: "8px 16px", textAlign: "center", whiteSpace: "nowrap" }}>{group.count}</td>
+                          <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: "600", whiteSpace: "nowrap" }}>
                             {group.total.toFixed(2)} €
                           </td>
-                          <td style={{ padding: 8, textAlign: "center" }}>
+                          <td style={{ padding: "8px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
                             <button 
                               className="btn-small" 
                               onClick={() => toggleDetails(group.month, group.user)}
@@ -216,11 +277,11 @@ export default function Listados({ user, profile }) {
                           
                           return (
                             <tr key={expense.id} style={{ borderTop: "1px solid #eee", backgroundColor: "#fff" }}>
-                              <td style={{ padding: 8, paddingLeft: 24, fontSize: 13 }}>{dateStr}</td>
-                              <td style={{ padding: 8, fontSize: 13 }} colSpan="2">
+                              <td style={{ padding: "8px 16px", paddingLeft: 32, fontSize: 13, whiteSpace: "nowrap" }}>{dateStr}</td>
+                              <td style={{ padding: "8px 16px", fontSize: 13, whiteSpace: "normal" }} colSpan="2">
                                 {expense.item || (expense.productLines ? expense.productLines.map(pl => `${pl.qty}x ${pl.label}`).join(", ") : "")}
                               </td>
-                              <td style={{ padding: 8, textAlign: "right", fontSize: 13 }}>
+                              <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, whiteSpace: "nowrap" }}>
                                 {Number(expense.amount || 0).toFixed(2)} €
                               </td>
                               <td></td>

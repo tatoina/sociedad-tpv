@@ -11,6 +11,7 @@ export default function Menu({ user, profile }) {
           {!profile?.isAdmin && <Link to="/tpv"><button className="btn-primary">TPV</button></Link>}
           <Link to="/listados"><button className="btn-primary">Listados</button></Link>
           {profile?.isAdmin && <Link to="/productos"><button className="btn-primary">Productos</button></Link>}
+          {profile?.isAdmin && <Link to="/usuarios"><button className="btn-primary">Usuarios</button></Link>}
         </div>
         <div style={{fontSize:13, color:'#666'}}>Selecciona una opción. En móvil los botones están optimizados para toque.</div>
       </div>
