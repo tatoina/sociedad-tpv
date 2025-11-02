@@ -133,20 +133,34 @@ export async function resetUserPassword(email) {
 export async function uploadUserPhoto(uid, file) {
   if (!uid || !file) throw new Error("UID y archivo requeridos");
   
-  // Crear referencia en Storage: user-photos/{uid}/{timestamp}_{filename}
-  const timestamp = Date.now();
-  const fileRef = storageRef(storage, `user-photos/${uid}/${timestamp}_${file.name}`);
-  
-  // Subir archivo
-  await uploadBytes(fileRef, file);
-  
-  // Obtener URL pública
-  const photoURL = await getDownloadURL(fileRef);
-  
-  // Actualizar en Firestore
-  await updateUserProfile(uid, { photoURL });
-  
-  return photoURL;
+  try {
+    console.log("Iniciando subida de foto...", { uid, fileName: file.name, fileSize: file.size });
+    
+    // Crear referencia en Storage: user-photos/{uid}/{timestamp}_{filename}
+    const timestamp = Date.now();
+    const fileRef = storageRef(storage, `user-photos/${uid}/${timestamp}_${file.name}`);
+    
+    console.log("Subiendo archivo a Storage...");
+    // Subir archivo
+    const uploadResult = await uploadBytes(fileRef, file);
+    console.log("Archivo subido, obteniendo URL...", uploadResult);
+    
+    // Obtener URL pública
+    const photoURL = await getDownloadURL(fileRef);
+    console.log("URL obtenida:", photoURL);
+    
+    // Actualizar en Firestore
+    console.log("Actualizando perfil en Firestore...");
+    await updateUserProfile(uid, { photoURL });
+    console.log("Foto subida y guardada exitosamente");
+    
+    return photoURL;
+  } catch (error) {
+    console.error("Error detallado en uploadUserPhoto:", error);
+    console.error("Error code:", error.code);
+    console.error("Error message:", error.message);
+    throw error;
+  }
 }
 
 export async function deleteUserPhoto(uid) {

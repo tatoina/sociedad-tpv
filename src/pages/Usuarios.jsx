@@ -87,23 +87,29 @@ export default function Usuarios({ profile }) {
     // Validar que sea imagen
     if (!file.type.startsWith('image/')) {
       alert('Por favor selecciona una imagen');
+      e.target.value = '';
       return;
     }
 
     // Validar tamaño (máx 2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('La imagen no puede superar 2MB');
+      e.target.value = '';
       return;
     }
 
     setUploadingPhoto(true);
     try {
+      console.log("Componente: iniciando subida...");
       const photoURL = await uploadUserPhoto(uid, file);
+      console.log("Componente: foto subida, URL recibida:", photoURL);
       setEditForm(prev => ({ ...prev, photoURL }));
       alert('Foto subida correctamente');
+      e.target.value = ''; // Limpiar input
     } catch (err) {
       console.error("Error subiendo foto:", err);
       alert("Error subiendo foto: " + (err.message || err));
+      e.target.value = ''; // Limpiar input
     } finally {
       setUploadingPhoto(false);
     }

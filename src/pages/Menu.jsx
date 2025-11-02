@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 export default function Menu({ user, profile }) {
   return (
     <div style={{padding:16}}>
-      <h2 style={{marginBottom:8}}>Bienvenido{user?.displayName ? `, ${user.displayName}` : ""}</h2>
+      <h2 style={{marginBottom:8}}>MENU DE OPCIONES{user?.displayName ? `, ${user.displayName}` : ""}</h2>
       <div style={{display:'grid', gap:12}}>
         <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
           {!profile?.isAdmin && <Link to="/tpv"><button className="btn-primary">TPV</button></Link>}

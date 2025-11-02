@@ -37,7 +37,7 @@ export default function TPV({ user, profile }) {
   const [cart, setCart] = useState([]);
   const [loadingSave, setLoadingSave] = useState(false);
   const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState(null);
   const [editingData, setEditingData] = useState(null);
   const nav = useNavigate();
