@@ -34,9 +34,23 @@ function formatMonth(monthKey) {
   return `${months[parseInt(month) - 1]} ${year}`;
 }
 
+// Función para obtener el primer día del mes anterior
+function getFirstDayOfPreviousMonth() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+  return toDateInputValue(firstDay);
+}
+
+// Función para obtener el último día del mes anterior
+function getLastDayOfPreviousMonth() {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  return toDateInputValue(lastDay);
+}
+
 export default function Listados({ user, profile }) {
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [start, setStart] = useState(getFirstDayOfPreviousMonth());
+  const [end, setEnd] = useState(getLastDayOfPreviousMonth());
   const [isAdmin, setIsAdmin] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
