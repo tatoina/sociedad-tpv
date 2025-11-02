@@ -24,6 +24,8 @@ export default function App() {
         setUser(u);
         try {
           const doc = await fetchUserDoc(u.uid);
+          console.log("Profile loaded:", doc);
+          console.log("PhotoURL:", doc?.photoURL);
           setProfile(doc);
         } catch (err) {
           console.error("fetchUserDoc error:", err);
@@ -97,6 +99,8 @@ export default function App() {
                 <img 
                   src={profile.photoURL} 
                   alt="Foto usuario" 
+                  onError={(e) => console.error("Error cargando imagen:", e)}
+                  onLoad={() => console.log("Imagen cargada correctamente")}
                   style={{ 
                     width: 32, 
                     height: 32, 
