@@ -37,6 +37,7 @@ export default function TPV({ user, profile }) {
   const [cart, setCart] = useState([]);
   const [loadingSave, setLoadingSave] = useState(false);
   const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(true);
   const [editingTicketId, setEditingTicketId] = useState(null);
   const [editingData, setEditingData] = useState(null);
   const nav = useNavigate();
@@ -229,8 +230,17 @@ export default function TPV({ user, profile }) {
         </div>
 
         <div>
-          <h4 style={{margin:'8px 0'}}>Histórico de tickets</h4>
-          {history.length === 0 ? <div>No hay ventas registradas.</div> : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+            <h4 style={{margin: 0}}>Histórico de tickets</h4>
+            <button 
+              className="btn-small"
+              onClick={() => setShowHistory(prev => !prev)}
+              style={{ fontSize: '12px' }}
+            >
+              {showHistory ? '▼ Ocultar' : '▶ Mostrar'}
+            </button>
+          </div>
+          {showHistory && (history.length === 0 ? <div>No hay ventas registradas.</div> : (
             <div style={{overflowX:'auto'}}>
               <table className="table-responsive" style={{width:'100%', borderCollapse:'collapse'}}>
                 <thead>
@@ -304,7 +314,7 @@ export default function TPV({ user, profile }) {
                 </tbody>
               </table>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
