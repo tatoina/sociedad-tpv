@@ -1,12 +1,9 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // User photos: only the user or admin can upload/delete their own photos
+    // User photos: all authenticated users can read and write (TEMPORAL - para testing)
     match /user-photos/{userId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write, delete: if request.auth != null && 
-                              (request.auth.uid == userId || 
-                               firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+      allow read, write: if request.auth != null;
     }
   }
 }
