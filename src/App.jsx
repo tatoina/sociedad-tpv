@@ -95,7 +95,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {user ? (
             <>
-              {profile?.photoURL && (
+              {profile?.photoURL ? (
                 <img 
                   src={profile.photoURL} 
                   alt="Foto usuario" 
@@ -109,6 +109,24 @@ export default function App() {
                     border: '2px solid #ddd'
                   }} 
                 />
+              ) : (
+                <div 
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    borderRadius: '50%', 
+                    background: '#1976d2',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    border: '2px solid #ddd'
+                  }}
+                >
+                  {(profile?.name || user.email || '?')[0].toUpperCase()}
+                </div>
               )}
               <strong>{user.email}</strong>
               {profile?.name && <span style={{ color: '#666' }}>— {profile.name}</span>}
