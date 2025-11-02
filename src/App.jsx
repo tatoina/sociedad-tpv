@@ -93,6 +93,19 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {user ? (
             <>
+              {profile?.photoURL && (
+                <img 
+                  src={profile.photoURL} 
+                  alt="Foto usuario" 
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    borderRadius: '50%', 
+                    objectFit: 'cover',
+                    border: '2px solid #ddd'
+                  }} 
+                />
+              )}
               <strong>{user.email}</strong>
               {profile?.name && <span style={{ color: '#666' }}>— {profile.name}</span>}
               {isInstalled && <span style={{ fontSize: 12, color: '#666' }}>📱 PWA</span>}
