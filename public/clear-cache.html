@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpiar Caché - Sociedad TPV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .info {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧹 Limpiar Caché de la App</h1>
+    <p>Si la app muestra contenido antiguo, usa este botón para limpiar la caché y service workers.</p>
+    
+    <button onclick="clearCacheAndReload()">Limpiar Caché y Recargar</button>
+    
+    <div id="status"></div>
+
+    <script>
+        async function clearCacheAndReload() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'info';
+            statusDiv.textContent = 'Limpiando caché...';
+
+            try {
+                // Desregistrar todos los service workers
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                    await registration.unregister();
+                    console.log('Service Worker desregistrado');
+                }
+
+                // Limpiar todas las cachés
+                const cacheNames = await caches.keys();
+                for (let cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    console.log('Caché eliminada:', cacheName);
+                }
+
+                statusDiv.className = 'success';
+                statusDiv.textContent = '✅ Caché limpiada. Redirigiendo a la app en 2 segundos...';
+
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error limpiando caché:', error);
+                statusDiv.className = 'info';
+                statusDiv.textContent = 'Error: ' + error.message + '. Recargando de todos modos...';
+                
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
