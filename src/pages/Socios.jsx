@@ -1,6 +1,6 @@
 // src/pages/Socios.jsx
 import React, { useState, useEffect } from "react";
-import { queryAllUsers, updateUserProfile, sendPasswordReset } from "../firebase";
+import { queryAllUsers, updateUserProfile, resetUserPassword as sendPasswordReset } from "../firebase";
 
 export default function Socios({ user, profile }) {
   const [users, setUsers] = useState([]);
