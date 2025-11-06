@@ -13,7 +13,7 @@ export default function Menu({ user, profile }) {
           {profile?.isAdmin && <Link to="/productos"><button className="btn-primary">Productos</button></Link>}
           {profile?.isAdmin && <Link to="/socios"><button className="btn-primary">Socios</button></Link>}
         </div>
-        <div style={{fontSize:13, color:'#666'}}>Selecciona una opción. En móvil los botones están optimizados para toque.</div>
+        <div className="muted">Selecciona una opción. En móvil los botones están optimizados para toque.</div>
       </div>
     </div>
   );

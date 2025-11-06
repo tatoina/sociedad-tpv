@@ -104,8 +104,24 @@ export default function App() {
     }
   };
 
+  // Aplicar variables CSS globales basadas en el tema
+  useEffect(() => {
+    document.documentElement.style.setProperty('--primary-bg', theme.primary);
+    document.documentElement.style.setProperty('--primary-color', '#ffffff');
+    document.documentElement.style.setProperty('--secondary-bg', theme.secondary);
+    document.documentElement.style.setProperty('--app-bg', theme.bg);
+    document.documentElement.style.setProperty('--app-text', theme.text);
+    document.documentElement.style.setProperty('--header-bg', theme.headerBg);
+    document.documentElement.style.setProperty('--ghost-border', theme.text === '#ffffff' ? '#555' : '#ccc');
+    // Color para cards - más claro u oscuro según el fondo
+    const cardBg = theme.bg === '#ffffff' ? '#f9f9f9' : (theme.bg === '#121212' ? '#1e1e1e' : theme.bg);
+    document.documentElement.style.setProperty('--card-bg', cardBg);
+    document.body.style.backgroundColor = theme.bg;
+    document.body.style.color = theme.text;
+  }, [theme]);
+
   return (
-    <div>
+    <div style={{ background: theme.bg, color: theme.text, minHeight: '100vh' }}>
       {/* Banner de instalación PWA */}
       {isInstallable && !isInstalled && (
         <div style={{ 
