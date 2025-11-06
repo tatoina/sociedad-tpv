@@ -245,7 +245,7 @@ export default function Listados({ user, profile }) {
 
       <button 
         className="btn-primary" 
-        onClick={exportToCSV}
+        onClick={() => setShowExportModal(true)}
         disabled={groupedData.length === 0}
         style={{ marginBottom: 12, fontSize: 14, padding: '8px 12px' }}
       >
