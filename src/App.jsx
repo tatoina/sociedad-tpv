@@ -5,6 +5,7 @@ import Menu from "./pages/Menu";
 import TPV from "./pages/Tpv";
 import Listados from "./pages/Listados";
 import Productos from "./pages/Productos";
+import Socios from "./pages/Socios";
 import { auth, fetchUserDoc, logout } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
@@ -114,6 +115,9 @@ export default function App() {
 
         {/* Página de gestión de productos para admin */}
         <Route path="/productos" element={user && profile?.isAdmin ? <Productos user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
+
+        {/* Página de gestión de socios para admin */}
+        <Route path="/socios" element={user && profile?.isAdmin ? <Socios user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
