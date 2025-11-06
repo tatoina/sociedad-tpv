@@ -95,7 +95,7 @@ export default function App() {
     }
   };
 
-  if (loadingAuth) return <div>Comprobando autenticación...</div>;
+  // El return condicional se mueve después de los hooks
 
   const handleInstall = async () => {
     const installed = await installPWA();
@@ -120,6 +120,9 @@ export default function App() {
     document.body.style.color = theme.text;
   }, [theme]);
 
+  if (loadingAuth) {
+    return <div>Comprobando autenticación...</div>;
+  }
   return (
     <div style={{ background: theme.bg, color: theme.text, minHeight: '100vh' }}>
       {/* Banner de instalación PWA */}
