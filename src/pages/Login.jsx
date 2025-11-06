@@ -13,9 +13,37 @@ export default function Login() {
     email: "",
     password: ""
   });
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar que sea imagen
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona una imagen');
+      return;
+    }
+
+    // Validar tamaño (máx 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('La imagen no puede superar 2MB');
+      return;
+    }
+
+    setPhotoFile(file);
+    
+    // Crear preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -27,7 +55,7 @@ export default function Login() {
         dob: form.dob,
         phone: form.phone,
         email: form.email
-      }, form.password);
+      }, form.password, photoFile);
       alert("Registro OK. Bienvenido.");
       nav("/menu");
     } catch (err) {
@@ -65,6 +93,35 @@ export default function Login() {
             <input className="full-input" name="surname" value={form.surname} onChange={onChange} placeholder="Apellidos" required />
             <input className="full-input" name="dob" value={form.dob} onChange={onChange} type="date" placeholder="Fecha de nacimiento" required />
             <input className="full-input" name="phone" value={form.phone} onChange={onChange} placeholder="Teléfono" required />
+            
+            {/* Foto */}
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: "block" }}>
+                Foto (opcional)
+              </label>
+              {photoPreview && (
+                <div style={{ marginBottom: 8 }}>
+                  <img 
+                    src={photoPreview} 
+                    alt="Vista previa" 
+                    style={{ 
+                      width: 100, 
+                      height: 100, 
+                      objectFit: "cover", 
+                      borderRadius: 8,
+                      border: "1px solid #ddd"
+                    }} 
+                  />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="full-input"
+                style={{ padding: '6px' }}
+              />
+            </div>
           </>
         )}
 

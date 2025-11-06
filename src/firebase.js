@@ -24,6 +24,13 @@ import {
   onSnapshot,
   serverTimestamp
 } from "firebase/firestore";
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "firebase/storage";
 
 // --- CONFIG: reemplaza por tu firebaseConfig real si hace falta ---
 const firebaseConfig = {
@@ -39,16 +46,33 @@ console.log("FIREBASE CONFIG:", { apiKey: firebaseConfig.apiKey, authDomain: fir
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 // ---- Auth helpers ----
-export async function registerWithEmail(profileData, password) {
+export async function registerWithEmail(profileData, password, photoFile = null) {
   const { email, name } = profileData;
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   if (name) {
     try { await updateProfile(cred.user, { displayName: name }); } catch (e) { console.warn(e); }
   }
+  
+  // Si hay foto, subirla primero
+  let photoURL = "";
+  if (photoFile) {
+    try {
+      photoURL = await uploadUserPhoto(cred.user.uid, photoFile);
+    } catch (e) {
+      console.warn("Error subiendo foto durante registro:", e);
+    }
+  }
+  
   const userRef = doc(db, "users", cred.user.uid);
-  await setDoc(userRef, { email, ...profileData, createdAt: serverTimestamp() });
+  await setDoc(userRef, { 
+    email, 
+    ...profileData, 
+    photoURL,
+    createdAt: serverTimestamp() 
+  });
   return cred.user;
 }
 
@@ -66,6 +90,111 @@ export async function fetchUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// ---- Users Management ----
+export async function queryAllUsers() {
+  try {
+    const usersCol = collection(db, "users");
+    const q = query(usersCol, orderBy("email", "asc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("queryAllUsers error:", err);
+    const snapAll = await getDocs(collection(db, "users"));
+    let items = snapAll.docs.map(d => ({ id: d.id, ...d.data() }));
+    items.sort((a,b) => String(a.email || "").localeCompare(String(b.email || "")));
+    return items;
+  }
+}
+
+export async function updateUserProfile(uid, data) {
+  if (!uid) throw new Error("UID requerido");
+  const ref = doc(db, "users", uid);
+  const allowed = {};
+  if (data.name !== undefined) allowed.name = data.name;
+  if (data.surname !== undefined) allowed.surname = data.surname;
+  if (data.dob !== undefined) allowed.dob = data.dob;
+  if (data.phone !== undefined) allowed.phone = data.phone;
+  if (data.photoURL !== undefined) allowed.photoURL = data.photoURL;
+  if (data.isAdmin !== undefined) allowed.isAdmin = !!data.isAdmin;
+  allowed.updatedAt = serverTimestamp();
+  await updateDoc(ref, allowed);
+  return true;
+}
+
+export async function resetUserPassword(email) {
+  if (!email) throw new Error("Email requerido");
+  await sendPasswordResetEmail(auth, email);
+  return true;
+}
+
+// ---- Photo Management ----
+export async function uploadUserPhoto(uid, file) {
+  if (!uid || !file) throw new Error("UID y archivo requeridos");
+  
+  try {
+    console.log("Iniciando subida de foto...", { uid, fileName: file.name, fileSize: file.size });
+    
+    // Crear referencia en Storage: user-photos/{uid}/{timestamp}_{filename}
+    const timestamp = Date.now();
+    const fileRef = storageRef(storage, `user-photos/${uid}/${timestamp}_${file.name}`);
+    
+    console.log("Subiendo archivo a Storage...");
+    // Subir archivo
+    const uploadResult = await uploadBytes(fileRef, file);
+    console.log("Archivo subido, obteniendo URL...", uploadResult);
+    
+    // Obtener URL pública
+    const photoURL = await getDownloadURL(fileRef);
+    console.log("URL obtenida:", photoURL);
+    
+    // Actualizar en Firestore
+    console.log("Actualizando perfil en Firestore...");
+    await updateUserProfile(uid, { photoURL });
+    console.log("Foto subida y guardada exitosamente");
+    
+    return photoURL;
+  } catch (error) {
+    console.error("Error detallado en uploadUserPhoto:", error);
+    console.error("Error code:", error.code);
+    console.error("Error message:", error.message);
+    throw error;
+  }
+}
+
+export async function deleteUserPhoto(uid) {
+  if (!uid) throw new Error("UID requerido");
+  
+  // Obtener datos del usuario para verificar si tiene foto
+  const userDoc = await fetchUserDoc(uid);
+  if (!userDoc?.photoURL) {
+    return true; // No hay foto que eliminar
+  }
+  
+  try {
+    // Extraer path de la URL de Firebase Storage
+    // URL formato: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token={token}
+    const url = new URL(userDoc.photoURL);
+    const pathMatch = url.pathname.match(/\/o\/(.+)$/);
+    
+    if (pathMatch) {
+      const encodedPath = pathMatch[1];
+      const decodedPath = decodeURIComponent(encodedPath);
+      
+      // Eliminar archivo de Storage
+      const fileRef = storageRef(storage, decodedPath);
+      await deleteObject(fileRef);
+    }
+  } catch (err) {
+    console.warn("Error eliminando foto de Storage:", err);
+    // Continuar de todos modos para limpiar la referencia en Firestore
+  }
+  
+  // Limpiar referencia en Firestore
+  await updateUserProfile(uid, { photoURL: "" });
+  
+  return true;
 }
 
 // ---- Products (existing helpers unchanged) ----

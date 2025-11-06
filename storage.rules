@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // User photos: all authenticated users can read and write (TEMPORAL - para testing)
+    match /user-photos/{userId}/{fileName} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

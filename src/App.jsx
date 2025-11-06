@@ -24,6 +24,8 @@ export default function App() {
         setUser(u);
         try {
           const doc = await fetchUserDoc(u.uid);
+          console.log("Profile loaded:", doc);
+          console.log("PhotoURL:", doc?.photoURL);
           setProfile(doc);
         } catch (err) {
           console.error("fetchUserDoc error:", err);
@@ -89,15 +91,70 @@ export default function App() {
         </div>
       )}
       
-      <header style={{ display: "flex", justifyContent: "space-between", padding: 8 }}>
-        <div>
-          {user ? <strong>{user.email}</strong> : <span>No autenticado</span>}
-          {profile?.name ? <span> — {profile.name}</span> : null}
-          {isInstalled && <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>📱 PWA</span>}
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {user ? (
+            <>
+              {profile?.photoURL ? (
+                <img 
+                  src={profile.photoURL} 
+                  alt="Foto usuario" 
+                  onError={(e) => console.error("Error cargando imagen:", e)}
+                  onLoad={() => console.log("Imagen cargada correctamente")}
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    borderRadius: '50%', 
+                    objectFit: 'cover',
+                    border: '2px solid #ddd'
+                  }} 
+                />
+              ) : (
+                <div 
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    borderRadius: '50%', 
+                    background: '#1976d2',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    border: '2px solid #ddd'
+                  }}
+                >
+                  {(profile?.name || user.email || '?')[0].toUpperCase()}
+                </div>
+              )}
+              <strong>{user.email}</strong>
+              {profile?.name && <span style={{ color: '#666' }}>— {profile.name}</span>}
+              {isInstalled && <span style={{ fontSize: 12, color: '#666' }}>📱 PWA</span>}
+              <button 
+                onClick={handleLogout}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: '13px',
+                  color: '#666'
+                }}
+                title="Cerrar sesión"
+              >
+                🔑
+              </button>
+            </>
+          ) : (
+            <span>No autenticado</span>
+          )}
         </div>
-        <div>
-          {user ? <button onClick={handleLogout}>Cerrar sesión</button> : null}
-        </div>
+        <div></div>
       </header>
 
       <Routes>
@@ -113,7 +170,7 @@ export default function App() {
 
         <Route path="/listados" element={user ? <Listados user={user} profile={profile} /> : <Navigate to="/login" replace />} />
 
-        {/* Página de gestión de productos para admin */}
+        {/* Páginas de gestión para admin */}
         <Route path="/productos" element={user && profile?.isAdmin ? <Productos user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
 
         {/* Página de gestión de socios para admin */}
