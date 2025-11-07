@@ -1,6 +1,14 @@
 // src/pages/Tpv.jsx
 import React, { useEffect, useState } from "react";
-import { subscribeProducts, addSale, queryExpenses, updateExpense, deleteExpense } from "../firebase";
+import { 
+  subscribeProducts, 
+  addSale, 
+  queryExpenses, 
+  updateExpense, 
+  deleteExpense,
+  getUserFavorites,
+  toggleFavoriteProduct
+} from "../firebase";
 import { useNavigate } from "react-router-dom";
 
 // util: agrupar líneas por productId o label+price
@@ -40,12 +48,31 @@ export default function TPV({ user, profile }) {
   const [showHistory, setShowHistory] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState(null);
   const [editingData, setEditingData] = useState(null);
+  const [favorites, setFavorites] = useState([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
     const unsub = subscribeProducts(setProducts, true);
     return () => unsub && unsub();
   }, []);
+
+  // Cargar favoritos del usuario
+  useEffect(() => {
+    let mounted = true;
+    const loadFavorites = async () => {
+      if (user && user.uid) {
+        try {
+          const userFavorites = await getUserFavorites(user.uid);
+          if (mounted) setFavorites(userFavorites);
+        } catch (err) {
+          console.error("Error loading favorites:", err);
+        }
+      }
+    };
+    loadFavorites();
+    return () => { mounted = false; };
+  }, [user]);
 
   useEffect(() => {
     let mounted = true;
@@ -74,8 +101,26 @@ export default function TPV({ user, profile }) {
   const removeFromCart = (index) => setCart(prev => prev.filter((_, i) => i !== index));
   const updateCartLine = (index, values) => setCart(prev => prev.map((l, i) => i === index ? { ...l, ...values } : l));
 
+  // Toggle favorito
+  const handleToggleFavorite = async (productId) => {
+    if (!user || !user.uid) return;
+    
+    try {
+      const updatedFavorites = await toggleFavoriteProduct(user.uid, productId);
+      setFavorites(updatedFavorites);
+    } catch (err) {
+      console.error("Error toggling favorite:", err);
+      alert("Error al actualizar favoritos");
+    }
+  };
+
   const groupedCart = groupProductLines(cart);
   const total = groupedCart.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 1)), 0);
+
+  // Filtrar productos: favoritos o todos
+  const displayedProducts = showFavoritesOnly 
+    ? products.filter(p => favorites.includes(p.id))
+    : products;
 
   const handleSaveSale = async () => {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
@@ -187,17 +232,171 @@ export default function TPV({ user, profile }) {
       <div style={{display:'flex', flexDirection:'column', gap:12}}>
         <div style={{display:'grid', gridTemplateColumns:'1fr', gap:8}}>
           <div>
-            <h4 style={{margin:'8px 0'}}>Productos</h4>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:8}}>
-              {products.map(p => (
-                <div key={p.id} className="card" style={{padding:10, border:'1px solid #ddd', borderRadius:8}}>
-                  <div style={{fontWeight:600, fontSize:16}}>{p.label}</div>
-                  <div style={{fontSize:13, color:'#666'}}>{p.category || "—"}</div>
-                  <div style={{marginTop:6, fontWeight:700}}>{Number(p.price || 0).toFixed(2)} €</div>
-                  <button className="btn-primary full" style={{marginTop:8}} onClick={() => addToCart(p)}>Añadir</button>
-                </div>
-              ))}
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+              <h4 style={{margin:0, fontSize:20, fontWeight:700, color:'#111827'}}>Productos</h4>
+              <div style={{display:'flex', gap:12, alignItems:'center'}}>
+                {showFavoritesOnly && (
+                  <span style={{
+                    fontSize: 13,
+                    color: '#6b7280',
+                    fontWeight: 500,
+                    background: '#fef3c7',
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    border: '1px solid #fbbf24'
+                  }}>
+                    {favorites.length} {favorites.length === 1 ? 'favorito' : 'favoritos'}
+                  </span>
+                )}
+                <button 
+                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  style={{
+                    fontSize: 14,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    background: showFavoritesOnly 
+                      ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' 
+                      : '#fff',
+                    color: showFavoritesOnly ? '#fff' : '#374151',
+                    border: showFavoritesOnly ? 'none' : '1px solid #e5e7eb',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: showFavoritesOnly 
+                      ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+                      : '0 1px 3px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                  onMouseEnter={(e) => {
+                    if (showFavoritesOnly) {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                    } else {
+                      e.currentTarget.style.background = '#f9fafb';
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (showFavoritesOnly) {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                    } else {
+                      e.currentTarget.style.background = '#fff';
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                    }
+                  }}
+                >
+                  <span style={{fontSize:16}}>{showFavoritesOnly ? "⭐" : "📋"}</span>
+                  <span>{showFavoritesOnly ? "Favoritos" : "Todos"}</span>
+                </button>
+              </div>
             </div>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:8}}>
+              {displayedProducts.map(p => {
+                const isFavorite = favorites.includes(p.id);
+                return (
+                  <div 
+                    key={p.id} 
+                    className="card" 
+                    style={{
+                      padding: '8px',
+                      position: 'relative'
+                    }}
+                  >
+                    <button
+                      onClick={() => handleToggleFavorite(p.id)}
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 20,
+                        padding: 4,
+                        lineHeight: 1,
+                        zIndex: 2
+                      }}
+                      title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+                    >
+                      {isFavorite ? "⭐" : "☆"}
+                    </button>
+
+                    <div style={{paddingTop: 8}}>
+                      <div style={{fontWeight:600, fontSize:14, marginBottom:4}}>
+                        {p.label}
+                      </div>
+                      <div style={{fontSize:11, color:'#666', marginBottom:8}}>
+                        {p.category || "Sin categoría"}
+                      </div>
+                      <div style={{fontSize:16, fontWeight:700, color:'#1976d2', marginBottom:8}}>
+                        {Number(p.price || 0).toFixed(2)} €
+                      </div>
+                      <button 
+                        className="btn-primary full" 
+                        style={{
+                          marginTop: 0,
+                          fontSize: 13,
+                          padding: '8px'
+                        }}
+                        onClick={() => addToCart(p)}
+                      >
+                        Añadir al carrito
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {showFavoritesOnly && displayedProducts.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                borderRadius: 16,
+                border: '2px dashed #fbbf24'
+              }}>
+                <div style={{
+                  fontSize: 64,
+                  marginBottom: 16,
+                  filter: 'grayscale(50%)',
+                  opacity: 0.6
+                }}>
+                  ⭐
+                </div>
+                <div style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: '#92400e',
+                  marginBottom: 8
+                }}>
+                  No tienes productos favoritos
+                </div>
+                <div style={{
+                  fontSize: 14,
+                  color: '#78350f',
+                  maxWidth: 300,
+                  margin: '0 auto',
+                  lineHeight: 1.6
+                }}>
+                  Haz clic en el botón <span style={{
+                    display: 'inline-block',
+                    width: 24,
+                    height: 24,
+                    background: '#fef3c7',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '50%',
+                    verticalAlign: 'middle',
+                    lineHeight: '22px',
+                    fontSize: 12
+                  }}>⭐</span> en cualquier producto para añadirlo a tus favoritos
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

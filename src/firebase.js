@@ -329,3 +329,116 @@ export async function deleteExpense(expenseId) {
   await deleteDoc(ref);
   return true;
 }
+
+// ---- Favorite Products Management ----
+
+// Obtener productos favoritos de un usuario
+export async function getUserFavorites(uid) {
+  if (!uid) return [];
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      return userData.favoriteProducts || [];
+    }
+    return [];
+  } catch (err) {
+    console.error("getUserFavorites error:", err);
+    return [];
+  }
+}
+
+// Añadir producto a favoritos
+export async function addFavoriteProduct(uid, productId) {
+  if (!uid || !productId) throw new Error("UID y productId requeridos");
+  
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const currentFavorites = userData.favoriteProducts || [];
+      
+      // Evitar duplicados
+      if (!currentFavorites.includes(productId)) {
+        const updatedFavorites = [...currentFavorites, productId];
+        await updateDoc(userRef, {
+          favoriteProducts: updatedFavorites,
+          updatedAt: serverTimestamp()
+        });
+        return updatedFavorites;
+      }
+      return currentFavorites;
+    } else {
+      // Si el usuario no existe, crear el documento con los favoritos
+      await setDoc(userRef, {
+        favoriteProducts: [productId],
+        createdAt: serverTimestamp()
+      });
+      return [productId];
+    }
+  } catch (err) {
+    console.error("addFavoriteProduct error:", err);
+    throw err;
+  }
+}
+
+// Quitar producto de favoritos
+export async function removeFavoriteProduct(uid, productId) {
+  if (!uid || !productId) throw new Error("UID y productId requeridos");
+  
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const currentFavorites = userData.favoriteProducts || [];
+      
+      const updatedFavorites = currentFavorites.filter(id => id !== productId);
+      await updateDoc(userRef, {
+        favoriteProducts: updatedFavorites,
+        updatedAt: serverTimestamp()
+      });
+      return updatedFavorites;
+    }
+    return [];
+  } catch (err) {
+    console.error("removeFavoriteProduct error:", err);
+    throw err;
+  }
+}
+
+// Verificar si un producto es favorito
+export async function isProductFavorite(uid, productId) {
+  if (!uid || !productId) return false;
+  
+  try {
+    const favorites = await getUserFavorites(uid);
+    return favorites.includes(productId);
+  } catch (err) {
+    console.error("isProductFavorite error:", err);
+    return false;
+  }
+}
+
+// Toggle favorito (añadir si no existe, quitar si existe)
+export async function toggleFavoriteProduct(uid, productId) {
+  if (!uid || !productId) throw new Error("UID y productId requeridos");
+  
+  try {
+    const favorites = await getUserFavorites(uid);
+    
+    if (favorites.includes(productId)) {
+      return await removeFavoriteProduct(uid, productId);
+    } else {
+      return await addFavoriteProduct(uid, productId);
+    }
+  } catch (err) {
+    console.error("toggleFavoriteProduct error:", err);
+    throw err;
+  }
+}
