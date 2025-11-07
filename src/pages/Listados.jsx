@@ -242,16 +242,6 @@ export default function Listados({ user, profile }) {
   return (
     <div style={{ padding: 12 }}>
       <h3 style={{ marginBottom: 12 }}>Listados</h3>
-
-      <button 
-        className="btn-primary" 
-        onClick={() => setShowExportModal(true)}
-        disabled={groupedData.length === 0}
-        style={{ marginBottom: 12, fontSize: 14, padding: '8px 12px' }}
-      >
-        📊 Exportar a CSV
-      </button>
-
       <form onSubmit={load} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontSize: 13 }}>Desde</label>

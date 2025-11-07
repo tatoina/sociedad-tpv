@@ -112,8 +112,7 @@ input:focus, select:focus, textarea:focus {
   transition: background-color 0.2s ease;
 }
 .table-responsive tbody tr:hover {
-  background: var(--secondary-bg);
-  color: var(--primary-color);
+  background: var(--hover-bg);
 }
 
 /* Cards */
