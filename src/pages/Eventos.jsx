@@ -3,41 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
-const BackButton = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    style={{
-      position: 'fixed',
-      top: '10px',
-      left: '10px',
-      padding: '8px 16px',
-      background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '600',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      zIndex: 999,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.2s ease'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'scale(1.05)';
-      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'scale(1)';
-      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    }}
-  >
-    ← Volver
-  </button>
-);
-
 const EVENT_TYPES = [
   'RESERVAR MESA',
   'CUMPLEAÑOS MES',
@@ -63,10 +28,6 @@ export default function Eventos({ user, profile }) {
   const [otherRegistrations, setOtherRegistrations] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const nav = useNavigate();
-
-  const handleBackButton = () => {
-    nav('/menu');
-  };
 
   // Función para obtener el día de la semana en español
   const getDayOfWeek = (dateString) => {
@@ -275,7 +236,6 @@ export default function Eventos({ user, profile }) {
 
   return (
     <div style={{ padding: 20, maxWidth: 800, margin: '0 auto' }}>
-      <BackButton onClick={handleBackButton} />
       <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#111827' }}>
         📅 Eventos
       </h2>

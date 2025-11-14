@@ -3,52 +3,34 @@ import React, { useState, useEffect } from 'react';
 import { queryExpenses } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
-const BackButton = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    style={{
-      position: 'fixed',
-      top: '10px',
-      left: '10px',
-      padding: '8px 16px',
-      background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '600',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      zIndex: 999,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.2s ease'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'scale(1.05)';
-      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'scale(1)';
-      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    }}
-  >
-    ← Volver
-  </button>
-);
-
 export default function ListadosTPV({ user }) {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  
+  // Inicializar con el mes anterior
+  const getLastMonthDates = () => {
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    return {
+      from: formatDate(firstDayLastMonth),
+      to: formatDate(lastDayLastMonth)
+    };
+  };
+  
+  const lastMonth = getLastMonthDates();
+  const [dateFrom, setDateFrom] = useState(lastMonth.from);
+  const [dateTo, setDateTo] = useState(lastMonth.to);
   const [filteredExpenses, setFilteredExpenses] = useState([]);
   const nav = useNavigate();
-
-  const handleBackButton = () => {
-    nav('/tpv');
-  };
 
   useEffect(() => {
     if (user?.uid) {
@@ -107,7 +89,6 @@ export default function ListadosTPV({ user }) {
 
   const calculateTotals = () => {
     let totalAmount = 0;
-    let totalItems = 0;
 
     filteredExpenses.forEach(exp => {
       const lines = exp.productLines || [];
@@ -115,13 +96,11 @@ export default function ListadosTPV({ user }) {
         const qty = Number(line.qty || 1);
         const price = Number(line.price || 0);
         totalAmount += qty * price;
-        totalItems += qty;
       });
     });
 
     return {
       totalTickets: filteredExpenses.length,
-      totalItems,
       totalAmount: totalAmount.toFixed(2)
     };
   };
@@ -242,16 +221,6 @@ export default function ListadosTPV({ user }) {
           }}>
             <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>Total Tickets</div>
             <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalTickets}</div>
-          </div>
-          <div style={{
-            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-            color: '#fff',
-            padding: 24,
-            borderRadius: 16,
-            boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
-          }}>
-            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>Total Artículos</div>
-            <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalItems}</div>
           </div>
           <div style={{
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',

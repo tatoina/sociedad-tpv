@@ -136,23 +136,64 @@ export async function uploadUserPhoto(uid, file) {
   if (!uid || !file) throw new Error("UID y archivo requeridos");
   
   try {
-    console.log("Iniciando conversión de foto a base64...", { uid, fileName: file.name, fileSize: file.size });
+    console.log("Iniciando compresión y conversión de foto...", { uid, fileName: file.name, fileSize: file.size });
     
-    // Convertir imagen a base64
-    const photoBase64 = await new Promise((resolve, reject) => {
+    // Comprimir imagen antes de convertir a base64
+    const compressedImage = await new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calcular dimensiones manteniendo aspecto (máximo 800x800)
+          let width = img.width;
+          let height = img.height;
+          const maxSize = 800;
+          
+          if (width > maxSize || height > maxSize) {
+            if (width > height) {
+              height = (height / width) * maxSize;
+              width = maxSize;
+            } else {
+              width = (width / height) * maxSize;
+              height = maxSize;
+            }
+          }
+          
+          // Crear canvas y redimensionar
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convertir a base64 con calidad ajustada
+          const base64 = canvas.toDataURL('image/jpeg', 0.7);
+          console.log("Imagen comprimida:", { 
+            originalSize: file.size, 
+            compressedSize: base64.length,
+            dimensions: `${width}x${height}`
+          });
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
     
-    console.log("Imagen convertida, guardando en Firestore...");
+    // Verificar tamaño final
+    if (compressedImage.length > 1000000) {
+      throw new Error("La imagen es demasiado grande incluso después de comprimir. Por favor, usa una imagen más pequeña.");
+    }
+    
+    console.log("Guardando en Firestore...");
     
     // Guardar directamente en Firestore como base64
-    await updateUserProfile(uid, { photoURL: photoBase64 });
+    await updateUserProfile(uid, { photoURL: compressedImage });
     console.log("Foto guardada exitosamente en Firestore");
     
-    return photoBase64;
+    return compressedImage;
   } catch (error) {
     console.error("Error detallado en uploadUserPhoto:", error);
     throw error;

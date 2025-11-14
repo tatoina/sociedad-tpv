@@ -55,10 +55,6 @@ export default function Listados({ user }) {
   const [selectedFiestaDay, setSelectedFiestaDay] = useState('');
   const nav = useNavigate();
 
-  const handleBackButton = () => {
-    nav('/menu');
-  };
-
   useEffect(() => {
     if (user?.uid) {
       loadRegistrations();

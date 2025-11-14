@@ -11,41 +11,6 @@ import {
 } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
-const BackButton = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    style={{
-      position: 'fixed',
-      top: '10px',
-      left: '10px',
-      padding: '8px 16px',
-      background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '600',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      zIndex: 999,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.2s ease'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'scale(1.05)';
-      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'scale(1)';
-      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    }}
-  >
-    ← Volver
-  </button>
-);
-
 // util: agrupar líneas por productId o label+price
 function groupProductLines(lines = []) {
   const map = new Map();
@@ -87,10 +52,6 @@ export default function TPV({ user, profile }) {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const nav = useNavigate();
-
-  const handleBackButton = () => {
-    nav('/menu');
-  };
 
   useEffect(() => {
     const unsub = subscribeProducts(setProducts, true);
@@ -278,7 +239,6 @@ export default function TPV({ user, profile }) {
 
   return (
     <div style={{padding:12}}>
-      <BackButton onClick={handleBackButton} />
       <div style={{display:'flex', flexDirection:'column', gap:12}}>
         <div style={{display:'grid', gridTemplateColumns:'1fr', gap:8}}>
           <div>
