@@ -4,11 +4,11 @@ import { Link } from "react-router-dom";
 
 export default function Menu({ user, profile }) {
   const MenuItem = ({ to, icon, label, isAdmin = false }) => (
-    <Link to={to} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    <Link to={to} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       <button
         style={{
-          width: '140px',
-          height: '140px',
+          width: '110px',
+          height: '110px',
           borderRadius: '50%',
           border: 'none',
           background: isAdmin 
@@ -22,8 +22,8 @@ export default function Menu({ user, profile }) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
-          fontSize: '48px'
+          gap: 4,
+          fontSize: '40px'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.05)';
@@ -37,7 +37,7 @@ export default function Menu({ user, profile }) {
         {icon}
       </button>
       <span style={{ 
-        fontSize: '16px', 
+        fontSize: '14px', 
         fontWeight: '600', 
         color: '#374151',
         textAlign: 'center'

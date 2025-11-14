@@ -132,7 +132,6 @@ export default function Listados({ user }) {
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
-      <BackButton onClick={handleBackButton} />
       <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#111827' }}>
         📊 Listados de Eventos
       </h2>
