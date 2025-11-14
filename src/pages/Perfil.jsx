@@ -13,6 +13,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
   });
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -160,8 +161,11 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '4px solid #e5e7eb'
-            }}>
+              border: '4px solid #e5e7eb',
+              cursor: profile?.photoURL ? 'pointer' : 'default'
+            }}
+            onClick={() => profile?.photoURL && setShowPhotoModal(true)}
+            >
               {profile?.photoURL ? (
                 <img 
                   src={profile.photoURL} 
@@ -359,6 +363,39 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Modal para maximizar foto */}
+      {showPhotoModal && profile?.photoURL && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 20,
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowPhotoModal(false)}
+        >
+          <img 
+            src={profile.photoURL} 
+            alt="Foto de perfil ampliada" 
+            style={{
+              maxWidth: '90%',
+              maxHeight: '90%',
+              objectFit: 'contain',
+              borderRadius: 8,
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+            }}
+          />
+        </div>
       )}
     </div>
   );

@@ -82,6 +82,7 @@ export default function App() {
   const [showCamera, setShowCamera] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [suggestionText, setSuggestionText] = useState('');
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
@@ -343,8 +344,14 @@ export default function App() {
                         objectFit: 'cover',
                         border: `2px solid ${theme.primary}`,
                         opacity: uploadingPhoto ? 0.5 : 1,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }} 
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPhotoModal(true);
+                        setShowUserMenu(false);
+                      }}
                     />
                   ) : (
                     <div 
@@ -842,6 +849,39 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+
+      {/* Modal para maximizar foto de perfil */}
+      {showPhotoModal && profile?.photoURL && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 20,
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowPhotoModal(false)}
+        >
+          <img 
+            src={profile.photoURL} 
+            alt="Foto de perfil ampliada" 
+            style={{
+              maxWidth: '90%',
+              maxHeight: '90%',
+              objectFit: 'contain',
+              borderRadius: 8,
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
