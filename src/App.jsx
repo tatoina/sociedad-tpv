@@ -11,6 +11,52 @@ import { auth, fetchUserDoc, logout, uploadUserPhoto } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
+// Versión de la aplicación
+const APP_VERSION = "1.0.0";
+
+// Función para limpiar caché
+const clearAppCache = async () => {
+  try {
+    // Limpiar caché del navegador
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.map(cacheName => caches.delete(cacheName))
+      );
+      console.log('Caché del navegador limpiada');
+    }
+    
+    // Limpiar localStorage excepto tema
+    const savedTheme = localStorage.getItem('app-theme');
+    localStorage.clear();
+    if (savedTheme) {
+      localStorage.setItem('app-theme', savedTheme);
+    }
+    
+    // Limpiar sessionStorage
+    sessionStorage.clear();
+    
+    console.log('Almacenamiento local limpiado');
+  } catch (err) {
+    console.error('Error limpiando caché:', err);
+  }
+};
+
+// Función para verificar versión
+const checkVersion = () => {
+  const savedVersion = localStorage.getItem('app-version');
+  if (savedVersion !== APP_VERSION) {
+    console.log(`Nueva versión detectada: ${APP_VERSION} (anterior: ${savedVersion})`);
+    clearAppCache().then(() => {
+      localStorage.setItem('app-version', APP_VERSION);
+      // Recargar la página para obtener los nuevos recursos
+      window.location.reload(true);
+    });
+    return true;
+  }
+  return false;
+};
+
 // Temas de colores disponibles
 const THEMES = [
   { name: 'Azul Clásico', primary: '#1976d2', secondary: '#1565c0', bg: '#ffffff', text: '#000000', headerBg: '#f5f5f5' },
@@ -40,6 +86,15 @@ export default function App() {
   const nav = useNavigate();
   const { isInstallable, isInstalled, installPWA } = usePWAInstall();
 
+  // Verificar versión al montar la app
+  useEffect(() => {
+    const versionChanged = checkVersion();
+    if (!versionChanged) {
+      // Solo guardar la versión actual si no cambió
+      localStorage.setItem('app-version', APP_VERSION);
+    }
+  }, []);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setLoadingAuth(true);
@@ -66,8 +121,11 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // Limpiar caché antes de cerrar sesión
+      await clearAppCache();
       await logout();
-      nav("/login");
+      // Recargar la página para limpiar todo el estado
+      window.location.href = '/login';
     } catch (err) {
       console.error("Logout error:", err);
       alert("Error cerrando sesión: " + (err.message || err));
@@ -182,6 +240,17 @@ export default function App() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showUserMenu]);
+
+  // Limpiar caché cuando se cierra la ventana/pestaña
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Guardar timestamp de última sesión
+      sessionStorage.setItem('last-session', Date.now().toString());
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   if (loadingAuth) {
     return <div>Comprobando autenticación...</div>;

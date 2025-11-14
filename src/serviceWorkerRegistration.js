@@ -47,11 +47,17 @@ function registerValidSW(swUrl, config) {
         installingWorker.onstatechange = () => {
           if (installingWorker.state === 'installed') {
             if (navigator.serviceWorker.controller) {
-              // Nuevo contenido disponible, notificar al usuario si se desea
-              console.log('Nuevo contenido disponible; por favor refresca.');
+              // Nuevo contenido disponible, actualizar automáticamente
+              console.log('Nueva versión disponible, actualizando...');
               if (config && config.onUpdate) {
                 config.onUpdate(registration);
               }
+              // Forzar actualización del service worker
+              registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+              // Recargar la página después de un momento
+              setTimeout(() => {
+                window.location.reload();
+              }, 1000);
             } else {
               // Contenido en caché para uso offline
               console.log('Contenido cacheado para uso offline.');

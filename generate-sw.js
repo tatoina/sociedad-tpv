@@ -9,6 +9,7 @@ generateSW({
   swDest: 'build/service-worker.js',
   clientsClaim: true,
   skipWaiting: true,
+  importScripts: ['./sw-handler.js'],
   runtimeCaching: [
     {
       urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
