@@ -424,21 +424,32 @@ export default function App() {
                           nav('/tpv');
                         }}
                         style={{
-                          width: '100%',
-                          padding: '12px 16px',
+                          width: 'calc(100% - 32px)',
+                          margin: '12px 16px 8px 16px',
+                          padding: '16px 20px',
                           border: 'none',
-                          background: 'transparent',
-                          color: theme.text,
-                          textAlign: 'left',
+                          background: theme.primary,
+                          color: '#fff',
+                          textAlign: 'center',
                           cursor: 'pointer',
-                          fontSize: '14px',
+                          fontSize: '16px',
+                          fontWeight: '600',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 8,
-                          borderBottom: `1px solid ${theme.primary}20`
+                          justifyContent: 'center',
+                          gap: 10,
+                          borderRadius: '24px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                        }}
                       >
                         🛒 TPV
                       </button>
@@ -449,21 +460,32 @@ export default function App() {
                         nav('/listados');
                       }}
                       style={{
-                        width: '100%',
-                        padding: '12px 16px',
+                        width: 'calc(100% - 32px)',
+                        margin: '8px 16px 12px 16px',
+                        padding: '16px 20px',
                         border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
+                        background: theme.secondary,
+                        color: '#fff',
+                        textAlign: 'center',
                         cursor: 'pointer',
-                        fontSize: '14px',
+                        fontSize: '16px',
+                        fontWeight: '600',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
+                        justifyContent: 'center',
+                        gap: 10,
+                        borderRadius: '24px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        transition: 'all 0.2s ease'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                      }}
                     >
                       📊 Listados
                     </button>
