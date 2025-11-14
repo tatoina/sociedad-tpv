@@ -11,6 +11,41 @@ import {
 } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
+const BackButton = ({ onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      position: 'fixed',
+      top: '10px',
+      left: '10px',
+      padding: '8px 16px',
+      background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '600',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      zIndex: 999,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      transition: 'all 0.2s ease'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'scale(1.05)';
+      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'scale(1)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+    }}
+  >
+    ← Volver
+  </button>
+);
+
 // util: agrupar líneas por productId o label+price
 function groupProductLines(lines = []) {
   const map = new Map();
@@ -52,6 +87,10 @@ export default function TPV({ user, profile }) {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const nav = useNavigate();
+
+  const handleBackButton = () => {
+    nav('/menu');
+  };
 
   useEffect(() => {
     const unsub = subscribeProducts(setProducts, true);
@@ -239,12 +278,40 @@ export default function TPV({ user, profile }) {
 
   return (
     <div style={{padding:12}}>
+      <BackButton onClick={handleBackButton} />
       <div style={{display:'flex', flexDirection:'column', gap:12}}>
         <div style={{display:'grid', gridTemplateColumns:'1fr', gap:8}}>
           <div>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:12}}>
               <h3 style={{margin:0, fontSize:24, fontWeight:700, color:'#111827'}}>TPV</h3>
               <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                {/* Botón Ver Listados TPV */}
+                <button
+                  onClick={() => nav('/listados-tpv')}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 6px rgba(5,150,105,0.25)',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.03)';
+                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(5,150,105,0.35)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(5,150,105,0.25)';
+                  }}
+                >
+                  📊 Ver Listados TPV
+                </button>
                 {/* Selector de categoría */}
                 <select
                   value={selectedCategory}

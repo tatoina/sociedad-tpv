@@ -1,489 +1,337 @@
 // src/pages/Listados.jsx
-import React, { useEffect, useState } from "react";
-import { queryExpenses } from "../firebase";
+import React, { useState, useEffect } from 'react';
+import { getAllEventRegistrations } from '../firebase';
 
-function toDateInputValue(date) {
-  if (!date) return "";
-  const d = date.toDate ? date.toDate() : new Date(date);
-  const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
-  return iso.slice(0, 16); // "YYYY-MM-DDTHH:MM"
-}
+const EVENT_TYPES = [
+  'RESERVAR MESA',
+  'CUMPLEAÑOS MES',
+  'FIESTAS DE ESTELLA',
+  'FERIAS',
+  'LOTERIA NAVIDAD',
+  'COTILLON DE REYES'
+];
 
-function parseDateInput(val) {
-  if (!val) return null;
-  // val expected like "2025-10-31T11:15"
-  const dt = new Date(val);
-  return isNaN(dt.getTime()) ? null : dt;
-}
-
-// Función para obtener el mes en formato "YYYY-MM"
-function getMonthKey(date) {
-  if (!date) return "Sin fecha";
-  const d = date.toDate ? date.toDate() : new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-}
-
-// Función para formatear el mes de forma legible
-function formatMonth(monthKey) {
-  if (monthKey === "Sin fecha") return monthKey;
-  const [year, month] = monthKey.split('-');
-  const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  return `${months[parseInt(month) - 1]} ${year}`;
-}
-
-// Función para obtener el primer día del mes anterior
-function getFirstDayOfPreviousMonth() {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
-  return toDateInputValue(firstDay);
-}
-
-// Función para obtener el último día del mes anterior
-function getLastDayOfPreviousMonth() {
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-  return toDateInputValue(lastDay);
-}
-
-export default function Listados({ user, profile }) {
-  const [start, setStart] = useState(getFirstDayOfPreviousMonth());
-  const [end, setEnd] = useState(getLastDayOfPreviousMonth());
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [expandedDetails, setExpandedDetails] = useState({});
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
+export default function Listados({ user }) {
+  const [selectedEvent, setSelectedEvent] = useState('');
+  const [allRegistrations, setAllRegistrations] = useState([]);
+  const [filteredRegistrations, setFilteredRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setIsAdmin(!!profile?.isAdmin);
-  }, [profile]);
+    if (user?.uid) {
+      loadRegistrations();
+    }
+  }, [user]);
 
-  const load = async (e) => {
-    if (e) e.preventDefault();
+  useEffect(() => {
+    if (selectedEvent) {
+      const filtered = allRegistrations.filter(reg => reg.eventType === selectedEvent);
+      setFilteredRegistrations(filtered);
+    } else {
+      setFilteredRegistrations([]);
+    }
+  }, [selectedEvent, allRegistrations]);
+
+  const loadRegistrations = async () => {
     setLoading(true);
     try {
-      const startDate = parseDateInput(start);
-      const endDate = parseDateInput(end);
-      // pasamos Date objects (Firestore code handles date fields that are Timestamps)
-      const docs = await queryExpenses({
-        uid: user?.uid,
-        isAdmin: isAdmin,
-        startDate: startDate,
-        endDate: endDate
-      });
-      setResults(docs);
+      const data = await getAllEventRegistrations();
+      setAllRegistrations(data);
     } catch (err) {
-      console.error("queryExpenses error:", err);
-      alert("Error cargando listados: " + (err.message || err));
+      console.error('Error cargando inscripciones:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // carga inicial (últimas 30) si quieres
-  useEffect(() => {
-    load();
-  }, [user, profile]);
+  const calculateTotals = () => {
+    if (!filteredRegistrations.length) return null;
 
-  // Agrupar resultados por mes y usuario
-  const groupByMonthAndUser = () => {
-    const grouped = {};
-    
-    results.forEach(r => {
-      const date = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate() : (r.date ? (r.date.toDate ? r.date.toDate() : new Date(r.date)) : null);
-      const monthKey = getMonthKey(date);
-      const userKey = r.userEmail || r.uid || "Usuario desconocido";
-      
-      const key = `${monthKey}|${userKey}`;
-      
-      if (!grouped[key]) {
-        grouped[key] = {
-          month: monthKey,
-          user: userKey,
-          total: 0,
-          count: 0,
-          expenses: []
-        };
-      }
-      
-      grouped[key].total += Number(r.amount || 0);
-      grouped[key].count += 1;
-      grouped[key].expenses.push(r);
+    let totalAdultos = 0;
+    let totalNinos = 0;
+    let totalComensales = 0;
+    let totalDecimos = 0;
+    let totalInscripciones = filteredRegistrations.length;
+
+    filteredRegistrations.forEach(reg => {
+      totalAdultos += reg.adultos || 0;
+      totalNinos += reg.ninos || 0;
+      totalComensales += reg.comensales || 0;
+      totalDecimos += reg.decimos || 0;
     });
-    
-    // Convertir a array y ordenar por mes descendente
-    return Object.values(grouped).sort((a, b) => {
-      if (b.month === a.month) {
-        return a.user.localeCompare(b.user);
-      }
-      return b.month.localeCompare(a.month);
-    });
+
+    const totalGeneral = totalAdultos + totalNinos;
+
+    return {
+      totalInscripciones,
+      totalAdultos,
+      totalNinos,
+      totalGeneral,
+      totalComensales,
+      totalDecimos
+    };
   };
 
-  const toggleDetails = (monthKey, userKey) => {
-    const key = `${monthKey}|${userKey}`;
-    setExpandedDetails(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
+  const totals = calculateTotals();
 
-  // Función para convertir datos a CSV
-  const convertToCSV = (data) => {
-    if (!data.length) return "";
-
-    const headers = [
-      "Fecha",
-      "Usuario",
-      "Email",
-      "Producto/Servicio", 
-      "Categoría",
-      "Cantidad",
-      "Importe (€)",
-      "ID Transacción"
-    ];
-
-    const csvContent = [
-      headers.join(","),
-      ...data.map(expense => {
-        const date = expense.createdAt && expense.createdAt.toDate 
-          ? expense.createdAt.toDate() 
-          : (expense.date ? (expense.date.toDate ? expense.date.toDate() : new Date(expense.date)) : null);
-        
-        const dateStr = date ? date.toLocaleString('es-ES') : "Sin fecha";
-        const item = expense.item || (expense.productLines ? expense.productLines.map(pl => `${pl.qty}x ${pl.label}`).join("; ") : "");
-        const userEmail = expense.userEmail || "Sin email";
-        const category = expense.category || "Sin categoría";
-        const amount = Number(expense.amount || 0).toFixed(2);
-        
-        // Escapar comillas y comas en los datos
-        const escapeCSV = (str) => {
-          if (typeof str !== 'string') str = String(str);
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        };
-
-        return [
-          escapeCSV(dateStr),
-          escapeCSV(userEmail.split('@')[0]), // Solo la parte antes del @
-          escapeCSV(userEmail),
-          escapeCSV(item),
-          escapeCSV(category),
-          "1", // Cantidad (por defecto 1)
-          amount,
-          escapeCSV(expense.id)
-        ].join(",");
-      })
-    ].join("\n");
-
-    return csvContent;
-  };
-
-  // Función para descargar CSV
-  const downloadCSV = (csvContent, filename) => {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
-  // Exportar datos filtrados (los que están actualmente en pantalla)
-  const exportFiltered = () => {
-    const csvContent = convertToCSV(results);
-    const startStr = start ? new Date(start).toLocaleDateString('es-ES') : 'inicio';
-    const endStr = end ? new Date(end).toLocaleDateString('es-ES') : 'fin';
-    const filename = `gastos_${startStr}_${endStr}_${new Date().toLocaleDateString('es-ES')}.csv`;
-    
-    downloadCSV(csvContent, filename);
-    setShowExportModal(false);
-  };
-
-  // Exportar todos los datos completos
-  const exportComplete = async () => {
-    setExportLoading(true);
-    try {
-      // Obtener TODOS los gastos sin filtros de fecha
-      const allExpenses = await queryExpenses({
-        uid: user?.uid,
-        isAdmin: isAdmin,
-        startDate: null,
-        endDate: null
-      });
-      
-      const csvContent = convertToCSV(allExpenses);
-      const filename = `gastos_completo_${new Date().toLocaleDateString('es-ES')}.csv`;
-      
-      downloadCSV(csvContent, filename);
-      setShowExportModal(false);
-    } catch (err) {
-      console.error("Error exportando datos completos:", err);
-      alert("Error exportando datos: " + (err.message || err));
-    } finally {
-      setExportLoading(false);
-    }
-  };
-
-  const groupedData = groupByMonthAndUser();
+  if (!user) {
+    return <div style={{ padding: 20 }}>No autenticado</div>;
+  }
 
   return (
-    <div style={{ padding: 12 }}>
-      <h3 style={{ marginBottom: 12 }}>Listados</h3>
-      <form onSubmit={load} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13 }}>Desde</label>
-          <input
-            type="datetime-local"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            style={{ 
-              padding: '8px', 
-              border: '1px solid #ddd', 
-              borderRadius: '8px', 
-              fontSize: '14px',
-              width: '100%'
-            }}
-          />
-        </div>
+    <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
+      <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#111827' }}>
+        📊 Listados de Eventos
+      </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13 }}>Hasta</label>
-          <input
-            type="datetime-local"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            style={{ 
-              padding: '8px', 
-              border: '1px solid #ddd', 
-              borderRadius: '8px', 
-              fontSize: '14px',
-              width: '100%'
-            }}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <button className="btn-primary" type="submit" style={{ flex: 1 }}>Buscar</button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => {
-              setStart("");
-              setEnd("");
-              setResults([]);
-              setExpandedDetails({});
-            }}
-            style={{ flex: 1 }}
-          >
-            Limpiar
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => setShowExportModal(true)}
-            style={{
-              backgroundColor: "#28a745",
-              color: "#fff",
-              border: "none",
-              padding: "8px 16px",
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}
-          >
-            📊 Exportar CSV
-          </button>
-        </div>
-      </form>
-
-      <div style={{ marginTop: 18 }}>
-        {loading ? <div>Cargando...</div> : (
-          <div>
-            <div style={{ fontSize: 14, marginBottom: 8 }}>
-              Total de gastos: {results.length} | Agrupaciones: {groupedData.length}
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table className="table-responsive" style={{ width: "auto", borderCollapse: "collapse", whiteSpace: "nowrap" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: "8px 16px", whiteSpace: "nowrap" }}>Mes</th>
-                    <th style={{ textAlign: "left", padding: "8px 16px", whiteSpace: "nowrap" }}>Usuario</th>
-                    <th style={{ textAlign: "center", padding: "8px 16px", whiteSpace: "nowrap" }}>Gastos</th>
-                    <th style={{ textAlign: "right", padding: "8px 16px", whiteSpace: "nowrap" }}>Total</th>
-                    <th style={{ textAlign: "center", padding: "8px 16px", whiteSpace: "nowrap" }}>Detalle</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedData.map(group => {
-                    const key = `${group.month}|${group.user}`;
-                    const isExpanded = expandedDetails[key];
-                    
-                    return (
-                      <React.Fragment key={key}>
-                        <tr style={{ borderTop: "2px solid #ddd", backgroundColor: "#f9f9f9" }}>
-                          <td style={{ padding: "8px 16px", fontWeight: "500", whiteSpace: "nowrap" }}>{formatMonth(group.month)}</td>
-                          <td style={{ padding: "8px 16px", whiteSpace: "nowrap" }}>{group.user}</td>
-                          <td style={{ padding: "8px 16px", textAlign: "center", whiteSpace: "nowrap" }}>{group.count}</td>
-                          <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: "600", whiteSpace: "nowrap" }}>
-                            {group.total.toFixed(2)} €
-                          </td>
-                          <td style={{ padding: "8px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
-                            <button 
-                              className="btn-small" 
-                              onClick={() => toggleDetails(group.month, group.user)}
-                            >
-                              {isExpanded ? "Ocultar" : "Ver"}
-                            </button>
-                          </td>
-                        </tr>
-                        {isExpanded && group.expenses.map(expense => {
-                          const date = expense.createdAt && expense.createdAt.toDate ? expense.createdAt.toDate() : (expense.date ? (expense.date.toDate ? expense.date.toDate() : new Date(expense.date)) : null);
-                          const dateStr = date ? date.toLocaleString() : "";
-                          
-                          return (
-                            <tr key={expense.id} style={{ borderTop: "1px solid #eee", backgroundColor: "#fff" }}>
-                              <td style={{ padding: "8px 16px", paddingLeft: 32, fontSize: 13, whiteSpace: "nowrap" }}>{dateStr}</td>
-                              <td style={{ padding: "8px 16px", fontSize: 13, whiteSpace: "normal" }} colSpan="2">
-                                {expense.item || (expense.productLines ? expense.productLines.map(pl => `${pl.qty}x ${pl.label}`).join(", ") : "")}
-                              </td>
-                              <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, whiteSpace: "nowrap" }}>
-                                {Number(expense.amount || 0).toFixed(2)} €
-                              </td>
-                              <td></td>
-                            </tr>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      {/* Selector de evento */}
+      <div style={{
+        background: '#fff',
+        padding: 24,
+        borderRadius: 16,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        marginBottom: 32
+      }}>
+        <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, fontSize: 16 }}>
+          Selecciona un evento:
+        </label>
+        <select
+          value={selectedEvent}
+          onChange={(e) => setSelectedEvent(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            fontSize: 16,
+            border: '2px solid #d1d5db',
+            borderRadius: 8,
+            background: '#fff',
+            fontWeight: 600
+          }}
+        >
+          <option value="">-- Selecciona un evento --</option>
+          {EVENT_TYPES.map(type => (
+            <option key={type} value={type}>{type}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Modal de exportación */}
-      {showExportModal && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000
-        }}>
+      {loading && (
+        <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+          Cargando datos...
+        </div>
+      )}
+
+      {!loading && selectedEvent && totals && (
+        <>
+          {/* Resumen de totales */}
           <div style={{
-            backgroundColor: "#fff",
+            background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             padding: 24,
-            borderRadius: 8,
-            maxWidth: 500,
-            width: "90%",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+            borderRadius: 16,
+            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+            marginBottom: 32,
+            color: '#fff'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Exportar a CSV</h3>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 22, fontWeight: 700 }}>
+              📈 Resumen: {selectedEvent}
+            </h3>
             
-            <p style={{ marginBottom: 20, color: "#666", lineHeight: 1.5 }}>
-              Selecciona el tipo de exportación que deseas realizar:
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-              <button
-                onClick={exportFiltered}
-                disabled={exportLoading}
-                style={{
-                  padding: "12px 16px",
-                  backgroundColor: "#1976d2",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: exportLoading ? "not-allowed" : "pointer",
-                  opacity: exportLoading ? 0.7 : 1,
-                  textAlign: "left",
-                  fontSize: 14
-                }}
-              >
-                <strong>📅 Exportar datos filtrados</strong>
-                <br />
-                <small style={{ opacity: 0.9 }}>
-                  Exporta solo los gastos mostrados actualmente ({results.length} registros)
-                  {start && end && (
-                    <span> desde {new Date(start).toLocaleDateString('es-ES')} hasta {new Date(end).toLocaleDateString('es-ES')}</span>
-                  )}
-                </small>
-              </button>
-
-              <button
-                onClick={exportComplete}
-                disabled={exportLoading}
-                style={{
-                  padding: "12px 16px",
-                  backgroundColor: "#28a745",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: exportLoading ? "not-allowed" : "pointer",
-                  opacity: exportLoading ? 0.7 : 1,
-                  textAlign: "left",
-                  fontSize: 14
-                }}
-              >
-                <strong>📊 Exportar datos completos</strong>
-                <br />
-                <small style={{ opacity: 0.9 }}>
-                  Exporta TODOS los gastos de la base de datos
-                  {isAdmin ? " (todos los usuarios)" : " (solo tus gastos)"}
-                </small>
-              </button>
-            </div>
-
-            {exportLoading && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
               <div style={{
-                padding: 12,
-                backgroundColor: "#fff3cd",
-                border: "1px solid #ffeaa7",
-                borderRadius: 4,
-                marginBottom: 16,
-                textAlign: "center",
-                color: "#856404"
+                background: 'rgba(255,255,255,0.15)',
+                padding: 16,
+                borderRadius: 12,
+                textAlign: 'center'
               }}>
-                ⏳ Generando archivo CSV... Por favor espera.
+                <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                  {totals.totalInscripciones}
+                </div>
+                <div style={{ fontSize: 13, opacity: 0.9 }}>
+                  Inscripciones
+                </div>
               </div>
-            )}
 
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setShowExportModal(false)}
-                disabled={exportLoading}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#666",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: exportLoading ? "not-allowed" : "pointer",
-                  opacity: exportLoading ? 0.7 : 1
-                }}
-              >
-                Cancelar
-              </button>
+              {(selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'RESERVAR MESA') && (
+                <>
+                  <div style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    padding: 16,
+                    borderRadius: 12,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                      {totals.totalAdultos}
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.9 }}>
+                      👥 Adultos
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    padding: 16,
+                    borderRadius: 12,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                      {totals.totalNinos}
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.9 }}>
+                      👶 Niños
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    padding: 16,
+                    borderRadius: 12,
+                    textAlign: 'center',
+                    border: '2px solid rgba(255,255,255,0.3)'
+                  }}>
+                    <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                      {totals.totalGeneral}
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 600 }}>
+                      TOTAL PERSONAS
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {selectedEvent === 'RESERVAR MESA' && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: 16,
+                  borderRadius: 12,
+                  textAlign: 'center',
+                  border: '2px solid rgba(255,255,255,0.3)'
+                }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                    {totals.totalComensales}
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 600 }}>
+                    🍽️ TOTAL COMENSALES
+                  </div>
+                </div>
+              )}
+
+              {selectedEvent === 'LOTERIA NAVIDAD' && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: 16,
+                  borderRadius: 12,
+                  textAlign: 'center',
+                  border: '2px solid rgba(255,255,255,0.3)'
+                }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
+                    {totals.totalDecimos}
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 600 }}>
+                    🎟️ TOTAL DÉCIMOS
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Lista de inscritos */}
+          <div style={{
+            background: '#fff',
+            padding: 24,
+            borderRadius: 16,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 20, fontWeight: 600, color: '#374151' }}>
+              👥 Lista de inscritos ({filteredRegistrations.length})
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {filteredRegistrations.map((reg, index) => (
+                <div
+                  key={reg.id}
+                  style={{
+                    background: '#f9fafb',
+                    padding: 16,
+                    borderRadius: 12,
+                    border: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 16
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 4 }}>
+                      {index + 1}. {reg.userName || reg.userEmail}
+                    </div>
+                    
+                    {/* RESERVAR MESA */}
+                    {selectedEvent === 'RESERVAR MESA' && (
+                      <div style={{ fontSize: 14, color: '#6b7280' }}>
+                        📅 {reg.fecha} {reg.hora && `• 🕐 ${reg.hora}`} • 🍽️ {reg.comensales} comensal{reg.comensales !== 1 ? 'es' : ''}
+                        {reg.observaciones && ` • 💬 ${reg.observaciones}`}
+                      </div>
+                    )}
+
+                    {/* CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, COTILLON DE REYES */}
+                    {['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(selectedEvent) && (
+                      <div style={{ fontSize: 14, color: '#6b7280' }}>
+                        {selectedEvent === 'FIESTAS DE ESTELLA' && reg.fecha && (
+                          <span>📅 {reg.fecha} {reg.diaSemana && `(${reg.diaSemana})`} • </span>
+                        )}
+                        👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                      </div>
+                    )}
+
+                    {/* LOTERIA NAVIDAD */}
+                    {selectedEvent === 'LOTERIA NAVIDAD' && (
+                      <div style={{ fontSize: 14, color: '#6b7280' }}>
+                        🎟️ {reg.decimos} décimo{reg.decimos !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{
+                    fontSize: 12,
+                    color: '#9ca3af',
+                    textAlign: 'right',
+                    minWidth: '100px'
+                  }}>
+                    {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleDateString('es-ES') : 'N/A'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!loading && selectedEvent && !totals && (
+        <div style={{
+          textAlign: 'center',
+          padding: 60,
+          background: '#f9fafb',
+          borderRadius: 16,
+          color: '#6b7280'
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>
+            No hay inscripciones para este evento
+          </div>
+        </div>
+      )}
+
+      {!loading && !selectedEvent && (
+        <div style={{
+          textAlign: 'center',
+          padding: 60,
+          background: '#f9fafb',
+          borderRadius: 16,
+          color: '#6b7280'
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>
+            Selecciona un evento para ver el listado
           </div>
         </div>
       )}

@@ -37,5 +37,11 @@ service cloud.firestore {
       allow list: if request.auth != null;
       allow update, delete: if request.auth != null && (request.auth.uid == resource.data.uid || isAdmin());
     }
+
+    // Event Configs: all authenticated users can read, only admin can write
+    match /eventConfigs/{eventType} {
+      allow read, list: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

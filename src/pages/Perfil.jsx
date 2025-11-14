@@ -1,6 +1,42 @@
 // src/pages/Perfil.jsx
 import React, { useState, useEffect } from "react";
 import { updateUserProfile } from "../firebase";
+import { useNavigate } from "react-router-dom";
+
+const BackButton = ({ onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      position: 'fixed',
+      top: '10px',
+      left: '10px',
+      padding: '8px 16px',
+      background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '600',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      zIndex: 999,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      transition: 'all 0.2s ease'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'scale(1.05)';
+      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'scale(1)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+    }}
+  >
+    ← Volver
+  </button>
+);
 
 export default function Perfil({ user, profile, onProfileUpdate }) {
   const [editing, setEditing] = useState(false);
@@ -11,6 +47,11 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     birthDate: ""
   });
   const [loading, setLoading] = useState(false);
+  const nav = useNavigate();
+
+  const handleBackButton = () => {
+    nav('/menu');
+  };
 
   useEffect(() => {
     if (profile) {
@@ -72,16 +113,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
 
   return (
     <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
+      <BackButton onClick={handleBackButton} />
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        {!isIncomplete && (
-          <button 
-            className="btn-ghost" 
-            onClick={() => window.history.back()}
-            style={{ padding: '8px 12px' }}
-          >
-            ← Volver
-          </button>
-        )}
         <h2 style={{ margin: 0 }}>Mi Perfil</h2>
       </div>
 

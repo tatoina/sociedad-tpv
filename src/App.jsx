@@ -3,7 +3,8 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Menu from "./pages/Menu";
 import TPV from "./pages/Tpv";
-import Listados from "./pages/Listados";
+import ListadosEventos from "./pages/ListadosEventos";
+import ListadosTPV from "./pages/ListadosTPV";
 import Productos from "./pages/Productos";
 import Socios from "./pages/Socios";
 import Perfil from "./pages/Perfil";
@@ -419,35 +420,10 @@ export default function App() {
                     overflow: 'hidden'
                   }}>
                     {!profile?.isAdmin && (
-                      <button
-                        onClick={() => {
-                          setShowUserMenu(false);
-                          nav('/tpv');
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          color: theme.text,
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          borderBottom: `1px solid ${theme.primary}20`
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        🛒 TPV
-                      </button>
-                    )}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        nav('/listados');
+                        nav('/tpv');
                       }}
                       style={{
                         width: '100%',
@@ -466,8 +442,10 @@ export default function App() {
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      📊 Listados
+                      🛒 TPV
                     </button>
+                    )}
+                    {!profile?.isAdmin && (
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -487,10 +465,35 @@ export default function App() {
                         gap: 8,
                         borderBottom: `1px solid ${theme.primary}20`
                       }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        📅 Eventos
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/listados-eventos');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      📅 Eventos
+                      📊 Listados Eventos
                     </button>
                     <button
                       onClick={() => {
@@ -779,21 +782,38 @@ export default function App() {
             }
           />
 
-          {/* Listados - redirige a perfil si no está completo */}
+          {/* Listados Eventos - redirige a perfil si no está completo */}
           <Route 
-            path="/listados" 
+            path="/listados-eventos" 
             element={
               user ? (
-                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Listados user={user} profile={profile} />
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <ListadosEventos user={user} profile={profile} />
               ) : <Navigate to="/login" replace />
             } 
           />
 
-          {/* Eventos - accesible para todos los usuarios - redirige a perfil si no está completo */}
+          {/* Listados TPV - accesible solo para usuarios NO admin - redirige a perfil si no está completo */}
+          <Route 
+            path="/listados-tpv" 
+            element={
+              user ? (
+                profile?.isAdmin ? (
+                  <Navigate to="/menu" replace />
+                ) : !isProfileComplete(profile) ? (
+                  <Navigate to="/perfil" replace />
+                ) : (
+                  <ListadosTPV user={user} profile={profile} />
+                )
+              ) : <Navigate to="/login" replace />
+            } 
+          />
+
+          {/* Eventos - accesible solo para usuarios NO admin - redirige a perfil si no está completo */}
           <Route 
             path="/eventos" 
             element={
               user ? (
+                profile?.isAdmin ? <Navigate to="/menu" replace /> :
                 !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Eventos user={user} profile={profile} />
               ) : <Navigate to="/login" replace />
             } 

@@ -525,3 +525,56 @@ export async function deleteEventRegistration(id) {
     throw err;
   }
 }
+
+// Eliminar todas las inscripciones de un tipo de evento específico
+export async function deleteAllEventRegistrationsByType(eventType) {
+  if (!eventType) throw new Error("Tipo de evento requerido");
+  
+  try {
+    const q = query(
+      collection(db, "eventRegistrations"),
+      where("eventType", "==", eventType)
+    );
+    const snapshot = await getDocs(q);
+    
+    // Eliminar todos los documentos encontrados
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    
+    return snapshot.docs.length; // Retorna cantidad de registros eliminados
+  } catch (err) {
+    console.error("deleteAllEventRegistrationsByType error:", err);
+    throw err;
+  }
+}
+
+// Guardar configuración de evento (ej: fecha de próxima cena)
+export async function setEventConfig(eventType, config) {
+  if (!eventType) throw new Error("Tipo de evento requerido");
+  
+  try {
+    const docRef = doc(db, "eventConfigs", eventType);
+    await setDoc(docRef, {
+      ...config,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return config;
+  } catch (err) {
+    console.error("setEventConfig error:", err);
+    throw err;
+  }
+}
+
+// Obtener configuración de evento
+export async function getEventConfig(eventType) {
+  if (!eventType) throw new Error("Tipo de evento requerido");
+  
+  try {
+    const docRef = doc(db, "eventConfigs", eventType);
+    const snapshot = await getDoc(docRef);
+    return snapshot.exists() ? snapshot.data() : null;
+  } catch (err) {
+    console.error("getEventConfig error:", err);
+    return null;
+  }
+}
