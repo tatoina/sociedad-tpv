@@ -7,6 +7,7 @@ import Listados from "./pages/Listados";
 import Productos from "./pages/Productos";
 import Socios from "./pages/Socios";
 import Perfil from "./pages/Perfil";
+import Eventos from "./pages/Eventos";
 import { auth, fetchUserDoc, logout, uploadUserPhoto } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
@@ -469,6 +470,30 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/eventos');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      📅 Eventos
+                    </button>
+                    <button
+                      onClick={() => {
                         document.getElementById('camera-input').click();
                         setShowUserMenu(false);
                       }}
@@ -760,6 +785,16 @@ export default function App() {
             element={
               user ? (
                 !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Listados user={user} profile={profile} />
+              ) : <Navigate to="/login" replace />
+            } 
+          />
+
+          {/* Eventos - accesible para todos los usuarios - redirige a perfil si no está completo */}
+          <Route 
+            path="/eventos" 
+            element={
+              user ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Eventos user={user} profile={profile} />
               ) : <Navigate to="/login" replace />
             } 
           />

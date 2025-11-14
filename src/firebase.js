@@ -444,3 +444,84 @@ export async function toggleFavoriteProduct(uid, productId) {
     throw err;
   }
 }
+
+// ============================================
+// GESTIÓN DE INSCRIPCIONES A EVENTOS
+// ============================================
+
+// Añadir inscripción a evento
+export async function addEventRegistration(data) {
+  try {
+    const docRef = await addDoc(collection(db, "eventRegistrations"), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return { id: docRef.id, ...data };
+  } catch (err) {
+    console.error("addEventRegistration error:", err);
+    throw err;
+  }
+}
+
+// Obtener inscripciones de un usuario
+export async function getUserEventRegistrations(uid) {
+  if (!uid) return [];
+  
+  try {
+    const q = query(
+      collection(db, "eventRegistrations"),
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.error("getUserEventRegistrations error:", err);
+    throw err;
+  }
+}
+
+// Obtener todas las inscripciones (para admin)
+export async function getAllEventRegistrations() {
+  try {
+    const q = query(
+      collection(db, "eventRegistrations"),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.error("getAllEventRegistrations error:", err);
+    throw err;
+  }
+}
+
+// Actualizar inscripción a evento
+export async function updateEventRegistration(id, data) {
+  if (!id) throw new Error("ID de inscripción requerido");
+  
+  try {
+    const docRef = doc(db, "eventRegistrations", id);
+    await updateDoc(docRef, {
+      ...data,
+      updatedAt: serverTimestamp()
+    });
+    return { id, ...data };
+  } catch (err) {
+    console.error("updateEventRegistration error:", err);
+    throw err;
+  }
+}
+
+// Eliminar inscripción a evento
+export async function deleteEventRegistration(id) {
+  if (!id) throw new Error("ID de inscripción requerido");
+  
+  try {
+    await deleteDoc(doc(db, "eventRegistrations", id));
+  } catch (err) {
+    console.error("deleteEventRegistration error:", err);
+    throw err;
+  }
+}
