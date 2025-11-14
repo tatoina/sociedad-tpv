@@ -64,7 +64,9 @@ export default function ListadosTPV({ user }) {
     setLoading(true);
     try {
       const data = await queryExpenses();
-      setExpenses(data);
+      // Filtrar solo los gastos del usuario actual
+      const userExpenses = data.filter(exp => exp.userId === user?.uid);
+      setExpenses(userExpenses);
     } catch (err) {
       console.error('Error cargando gastos:', err);
     } finally {
