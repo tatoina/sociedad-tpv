@@ -1,6 +1,6 @@
 // src/pages/Perfil.jsx
 import React, { useState, useEffect } from "react";
-import { updateUserProfile } from "../firebase";
+import { updateUserProfile, uploadUserPhoto, deleteUserPhoto } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
 const BackButton = ({ onClick }) => (
@@ -47,6 +47,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     birthDate: ""
   });
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const nav = useNavigate();
 
   const handleBackButton = () => {
@@ -108,6 +109,57 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     setEditing(false);
   };
 
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tamaño (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("La imagen no puede superar los 5MB");
+      return;
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      alert("Solo se permiten archivos de imagen");
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      await uploadUserPhoto(user.uid, file);
+      alert("Foto actualizada correctamente");
+      if (onProfileUpdate) {
+        onProfileUpdate();
+      }
+    } catch (err) {
+      console.error("Error subiendo foto:", err);
+      alert("Error al subir la foto: " + (err.message || err));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!window.confirm("¿Estás seguro de que quieres eliminar tu foto de perfil?")) {
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      await deleteUserPhoto(user.uid);
+      alert("Foto eliminada correctamente");
+      if (onProfileUpdate) {
+        onProfileUpdate();
+      }
+    } catch (err) {
+      console.error("Error eliminando foto:", err);
+      alert("Error al eliminar la foto: " + (err.message || err));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   // Verificar si el perfil está incompleto
   const isIncomplete = !profile?.name || !profile?.lastName || !profile?.phone || !profile?.birthDate;
 
@@ -136,6 +188,76 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
 
       {!editing ? (
         <div className="card" style={{ padding: 20 }}>
+          {/* Foto de perfil */}
+          <div style={{ marginBottom: 24, textAlign: 'center' }}>
+            <div style={{ 
+              width: 120, 
+              height: 120, 
+              borderRadius: '50%', 
+              overflow: 'hidden',
+              margin: '0 auto 16px',
+              background: profile?.photoURL ? 'transparent' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '4px solid #e5e7eb'
+            }}>
+              {profile?.photoURL ? (
+                <img 
+                  src={profile.photoURL} 
+                  alt="Foto de perfil" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ fontSize: 48, color: '#fff' }}>
+                  {profile?.name?.charAt(0)?.toUpperCase() || '👤'}
+                </span>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <label style={{
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: '#fff',
+                borderRadius: 8,
+                cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                opacity: uploadingPhoto ? 0.6 : 1
+              }}>
+                {uploadingPhoto ? '⏳ Subiendo...' : '📷 Cambiar foto'}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  disabled={uploadingPhoto}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              
+              {profile?.photoURL && (
+                <button
+                  onClick={handleDeletePhoto}
+                  disabled={uploadingPhoto}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    opacity: uploadingPhoto ? 0.6 : 1
+                  }}
+                >
+                  🗑️ Eliminar
+                </button>
+              )}
+            </div>
+          </div>
+
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Email</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{user?.email}</div>
