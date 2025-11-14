@@ -125,7 +125,6 @@ export default function ListadosTPV({ user }) {
 
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
-      <BackButton onClick={handleBackButton} />
       <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#111827' }}>
         📊 Listados TPV
       </h2>
@@ -180,27 +179,6 @@ export default function ListadosTPV({ user }) {
               }}
             />
           </div>
-          {(dateFrom || dateTo) && (
-            <button
-              onClick={() => {
-                setDateFrom('');
-                setDateTo('');
-              }}
-              style={{
-                padding: '10px 20px',
-                background: '#ef4444',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                alignSelf: 'flex-end'
-              }}
-            >
-              Limpiar filtros
-            </button>
-          )}
         </div>
       </div>
 

@@ -157,7 +157,8 @@ export default function TPV({ user, profile }) {
         userEmail: salePayload.userEmail,
         item: salePayload.item,
         category: salePayload.category,
-        amount: salePayload.amount
+        amount: salePayload.amount,
+        productLines: salePayload.productLines
       });
       // añadir al histórico local
       const saved = {

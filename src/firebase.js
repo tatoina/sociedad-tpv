@@ -309,15 +309,17 @@ export async function queryExpenses({ uid, isAdmin = false, startDate = null, en
   }
 }
 
-export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null } = {}) {
+export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null } = {}) {
   if (!uid) throw new Error("UID requerido para addSale");
   const payload = {
     uid,
+    userId: uid, // Añadir userId para compatibilidad con filtros
     userEmail: userEmail || "",
     item: item || "",
     category: category || "",
     amount: Number(amount) || 0,
     productId: productId || null,
+    productLines: productLines || null,
     date: date ? date : serverTimestamp(),
     createdAt: serverTimestamp()
   };
