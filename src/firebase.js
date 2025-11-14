@@ -143,8 +143,17 @@ export async function uploadUserPhoto(uid, file) {
     const fileRef = storageRef(storage, `user-photos/${uid}/${timestamp}_${file.name}`);
     
     console.log("Subiendo archivo a Storage...");
-    // Subir archivo
-    const uploadResult = await uploadBytes(fileRef, file);
+    // Metadata para CORS
+    const metadata = {
+      contentType: file.type,
+      cacheControl: 'public,max-age=3600',
+      customMetadata: {
+        uploadedBy: uid
+      }
+    };
+    
+    // Subir archivo con metadata
+    const uploadResult = await uploadBytes(fileRef, file, metadata);
     console.log("Archivo subido, obteniendo URL...", uploadResult);
     
     // Obtener URL pública
