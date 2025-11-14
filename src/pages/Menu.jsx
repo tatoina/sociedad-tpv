@@ -37,7 +37,7 @@ export default function Menu({ user, profile }) {
         {icon}
       </button>
       <span style={{ 
-        fontSize: '14px', 
+        fontSize: '12px', 
         fontWeight: '600', 
         color: '#374151',
         textAlign: 'center'
@@ -57,7 +57,7 @@ export default function Menu({ user, profile }) {
     }}>
       <h2 style={{
         marginBottom: 40,
-        fontSize: 28,
+        fontSize: 22,
         fontWeight: 700,
         color: '#111827',
         textAlign: 'center'
