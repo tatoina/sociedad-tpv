@@ -136,40 +136,25 @@ export async function uploadUserPhoto(uid, file) {
   if (!uid || !file) throw new Error("UID y archivo requeridos");
   
   try {
-    console.log("Iniciando subida de foto...", { uid, fileName: file.name, fileSize: file.size });
+    console.log("Iniciando conversión de foto a base64...", { uid, fileName: file.name, fileSize: file.size });
     
-    // Crear referencia en Storage: user-photos/{uid}/{timestamp}_{filename}
-    const timestamp = Date.now();
-    const fileRef = storageRef(storage, `user-photos/${uid}/${timestamp}_${file.name}`);
+    // Convertir imagen a base64
+    const photoBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
     
-    console.log("Subiendo archivo a Storage...");
-    // Metadata para CORS
-    const metadata = {
-      contentType: file.type,
-      cacheControl: 'public,max-age=3600',
-      customMetadata: {
-        uploadedBy: uid
-      }
-    };
+    console.log("Imagen convertida, guardando en Firestore...");
     
-    // Subir archivo con metadata
-    const uploadResult = await uploadBytes(fileRef, file, metadata);
-    console.log("Archivo subido, obteniendo URL...", uploadResult);
+    // Guardar directamente en Firestore como base64
+    await updateUserProfile(uid, { photoURL: photoBase64 });
+    console.log("Foto guardada exitosamente en Firestore");
     
-    // Obtener URL pública
-    const photoURL = await getDownloadURL(fileRef);
-    console.log("URL obtenida:", photoURL);
-    
-    // Actualizar en Firestore
-    console.log("Actualizando perfil en Firestore...");
-    await updateUserProfile(uid, { photoURL });
-    console.log("Foto subida y guardada exitosamente");
-    
-    return photoURL;
+    return photoBase64;
   } catch (error) {
     console.error("Error detallado en uploadUserPhoto:", error);
-    console.error("Error code:", error.code);
-    console.error("Error message:", error.message);
     throw error;
   }
 }
@@ -177,35 +162,15 @@ export async function uploadUserPhoto(uid, file) {
 export async function deleteUserPhoto(uid) {
   if (!uid) throw new Error("UID requerido");
   
-  // Obtener datos del usuario para verificar si tiene foto
-  const userDoc = await fetchUserDoc(uid);
-  if (!userDoc?.photoURL) {
-    return true; // No hay foto que eliminar
-  }
-  
   try {
-    // Extraer path de la URL de Firebase Storage
-    // URL formato: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token={token}
-    const url = new URL(userDoc.photoURL);
-    const pathMatch = url.pathname.match(/\/o\/(.+)$/);
-    
-    if (pathMatch) {
-      const encodedPath = pathMatch[1];
-      const decodedPath = decodeURIComponent(encodedPath);
-      
-      // Eliminar archivo de Storage
-      const fileRef = storageRef(storage, decodedPath);
-      await deleteObject(fileRef);
-    }
+    // Simplemente limpiar la referencia en Firestore
+    await updateUserProfile(uid, { photoURL: "" });
+    console.log("Foto eliminada exitosamente de Firestore");
+    return true;
   } catch (err) {
-    console.warn("Error eliminando foto de Storage:", err);
-    // Continuar de todos modos para limpiar la referencia en Firestore
+    console.error("Error eliminando foto:", err);
+    throw err;
   }
-  
-  // Limpiar referencia en Firestore
-  await updateUserProfile(uid, { photoURL: "" });
-  
-  return true;
 }
 
 // ---- Products (existing helpers unchanged) ----
