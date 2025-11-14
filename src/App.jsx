@@ -6,6 +6,7 @@ import TPV from "./pages/Tpv";
 import Listados from "./pages/Listados";
 import Productos from "./pages/Productos";
 import Socios from "./pages/Socios";
+import Perfil from "./pages/Perfil";
 import { auth, fetchUserDoc, logout, uploadUserPhoto } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
@@ -32,6 +33,10 @@ export default function App() {
   });
   const [showCamera, setShowCamera] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [suggestionText, setSuggestionText] = useState('');
+  const [sendingSuggestion, setSendingSuggestion] = useState(false);
   const nav = useNavigate();
   const { isInstallable, isInstalled, installPWA } = usePWAInstall();
 
@@ -66,6 +71,52 @@ export default function App() {
     } catch (err) {
       console.error("Logout error:", err);
       alert("Error cerrando sesión: " + (err.message || err));
+    }
+  };
+
+  const reloadProfile = async () => {
+    if (user) {
+      try {
+        const doc = await fetchUserDoc(user.uid);
+        setProfile(doc);
+      } catch (err) {
+        console.error("Error reloading profile:", err);
+      }
+    }
+  };
+
+  // Verificar si el perfil está completo
+  const isProfileComplete = (prof) => {
+    return prof && prof.name && prof.lastName && prof.phone && prof.birthDate;
+  };
+
+  // Enviar sugerencia
+  const handleSendSuggestion = async () => {
+    if (!suggestionText.trim()) {
+      alert('Por favor, escribe tu sugerencia');
+      return;
+    }
+    
+    setSendingSuggestion(true);
+    try {
+      const userName = profile?.name || user?.email || 'Usuario anónimo';
+      const userEmail = user?.email || 'sin email';
+      const subject = `Sugerencia TPV App - ${userName}`;
+      const body = `Usuario: ${userName}\nEmail: ${userEmail}\n\nSugerencia:\n${suggestionText}`;
+      
+      // Crear mailto link
+      const mailtoLink = `mailto:inavicba@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailtoLink;
+      
+      // Cerrar modal y limpiar
+      setShowSuggestionModal(false);
+      setSuggestionText('');
+      alert('Se abrirá tu cliente de correo para enviar la sugerencia');
+    } catch (err) {
+      console.error('Error al enviar sugerencia:', err);
+      alert('Error al abrir el cliente de correo');
+    } finally {
+      setSendingSuggestion(false);
     }
   };
 
@@ -120,6 +171,18 @@ export default function App() {
     document.body.style.color = theme.text;
   }, [theme]);
 
+  // Cerrar menú de usuario al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showUserMenu && !e.target.closest('[data-user-menu]')) {
+        setShowUserMenu(false);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showUserMenu]);
+
   if (loadingAuth) {
     return <div>Comprobando autenticación...</div>;
   }
@@ -158,15 +221,16 @@ export default function App() {
         display: "flex", 
         justifyContent: "space-between", 
         alignItems: "center", 
-        padding: 8,
+        padding: '12px 20px',
         background: theme.headerBg,
-        borderBottom: `2px solid ${theme.primary}`
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        borderBottom: `1px solid ${theme.primary}20`
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {user ? (
             <>
-              {/* Avatar / Foto - Click para tomar selfie */}
-              <div style={{ position: 'relative' }}>
+              {/* Avatar / Foto con menú desplegable */}
+              <div style={{ position: 'relative' }} data-user-menu>
                 <input
                   type="file"
                   accept="image/*"
@@ -176,43 +240,56 @@ export default function App() {
                   id="camera-input"
                   disabled={uploadingPhoto}
                 />
-                <label 
-                  htmlFor="camera-input"
+                <div 
+                  onClick={() => setShowUserMenu(!showUserMenu)}
                   style={{ 
                     cursor: uploadingPhoto ? 'wait' : 'pointer',
-                    display: 'block',
-                    position: 'relative'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    position: 'relative',
+                    padding: '6px 12px',
+                    borderRadius: '24px',
+                    transition: 'background 0.2s ease',
+                    background: showUserMenu ? theme.primary + '15' : 'transparent'
                   }}
-                  title="Clic para tomar/cambiar foto"
+                  title="Menú de usuario"
+                  onMouseEnter={(e) => {
+                    if (!showUserMenu) e.currentTarget.style.background = theme.primary + '10';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!showUserMenu) e.currentTarget.style.background = 'transparent';
+                  }}
                 >
                   {profile?.photoURL ? (
                     <img 
                       src={profile.photoURL} 
                       alt="Foto usuario" 
                       style={{ 
-                        width: 40, 
-                        height: 40, 
+                        width: 44, 
+                        height: 44, 
                         borderRadius: '50%', 
                         objectFit: 'cover',
-                        border: `3px solid ${theme.primary}`,
-                        opacity: uploadingPhoto ? 0.5 : 1
+                        border: `2px solid ${theme.primary}`,
+                        opacity: uploadingPhoto ? 0.5 : 1,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                       }} 
                     />
                   ) : (
                     <div 
                       style={{ 
-                        width: 40, 
-                        height: 40, 
+                        width: 44, 
+                        height: 44, 
                         borderRadius: '50%', 
-                        background: theme.primary,
+                        background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '16px',
+                        fontSize: '18px',
                         fontWeight: 'bold',
-                        border: `3px solid ${theme.primary}`,
-                        opacity: uploadingPhoto ? 0.5 : 1
+                        opacity: uploadingPhoto ? 0.5 : 1,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                       }}
                     >
                       {(profile?.name || user.email || '?')[0].toUpperCase()}
@@ -221,93 +298,422 @@ export default function App() {
                   {uploadingPhoto && (
                     <div style={{
                       position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: 40,
-                      height: 40,
+                      top: 6,
+                      left: 12,
+                      width: 44,
+                      height: 44,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.5)',
+                      background: 'rgba(0,0,0,0.6)',
                       color: 'white',
                       fontSize: '20px'
                     }}>
                       ⏳
                     </div>
                   )}
-                </label>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <strong style={{ 
+                      color: theme.text, 
+                      fontSize: 15,
+                      fontWeight: 600
+                    }}>
+                      {profile?.name || user.email?.split('@')[0]}
+                    </strong>
+                    <span style={{ 
+                      fontSize: 18,
+                      color: theme.text,
+                      opacity: 0.5,
+                      transition: 'transform 0.2s ease',
+                      transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}>
+                      ▼
+                    </span>
+                  </div>
+                </div>
+
+                {/* Menú desplegable */}
+                {showUserMenu && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '60px',
+                    left: 0,
+                    background: theme.bg,
+                    border: `1px solid ${theme.primary}30`,
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    minWidth: '220px',
+                    zIndex: 1000,
+                    overflow: 'hidden'
+                  }}>
+                    {!profile?.isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          nav('/tpv');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: theme.text,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          borderBottom: `1px solid ${theme.primary}20`
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        🛒 TPV
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/listados');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      📊 Listados
+                    </button>
+                    <button
+                      onClick={() => {
+                        document.getElementById('camera-input').click();
+                        setShowUserMenu(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      📸 Cambiar foto de perfil
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        alert('Se enviará un correo para cambiar la contraseña');
+                        // TODO: Implementar solicitud de cambio de contraseña
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      🔑 Cambiar contraseña
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/perfil');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      👤 Ver perfil
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        setShowSuggestionModal(true);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      💡 Sugerencias para la app
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleLogout();
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#d32f2f',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontWeight: '600'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#d32f2f20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      🚪 Cerrar sesión
+                    </button>
+                  </div>
+                )}
               </div>
-
-              <strong style={{ color: theme.text }}>{user.email}</strong>
-              {profile?.name && <span style={{ color: theme.text, opacity: 0.7 }}>— {profile.name}</span>}
-              {isInstalled && <span style={{ fontSize: 12, color: theme.text, opacity: 0.7 }}>📱 PWA</span>}
-              
-              {/* Botón ESTILO */}
-              <button 
-                onClick={changeTheme}
-                style={{
-                  background: theme.primary,
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  marginLeft: '4px'
-                }}
-                title={`Tema actual: ${theme.name}`}
-              >
-                🎨 ESTILO
-              </button>
-
-              {/* Botón Logout */}
-              <button 
-                onClick={handleLogout}
-                style={{
-                  background: 'transparent',
-                  border: `1px solid ${theme.primary}`,
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: '13px',
-                  color: theme.primary
-                }}
-                title="Cerrar sesión"
-              >
-                🔑
-              </button>
+            
             </>
           ) : (
             <span style={{ color: theme.text }}>No autenticado</span>
           )}
         </div>
-        <div></div>
+        
+        {/* Botón ESTILO - tres puntos de colores */}
+        {user && (
+          <button 
+            onClick={changeTheme}
+            style={{
+              background: theme.bg,
+              border: `1px solid ${theme.primary}30`,
+              borderRadius: '20px',
+              width: 40,
+              height: 40,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 3,
+              padding: 0,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s ease'
+            }}
+            title={`Cambiar tema (actual: ${theme.name})`}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+            }}
+          >
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#4285F4'
+            }}></div>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#EA4335'
+            }}></div>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#FBBC04'
+            }}></div>
+          </button>
+        )}
       </header>
+
+      {/* Modal de sugerencias */}
+      {showSuggestionModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 16
+          }}
+          onClick={() => setShowSuggestionModal(false)}
+        >
+          <div 
+            style={{
+              background: theme.bg,
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 500,
+              width: '100%',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', color: theme.text }}>
+              💡 Enviar sugerencia
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: 14, color: theme.text, opacity: 0.7 }}>
+              Cuéntanos qué mejoras te gustaría ver en la app
+            </p>
+            <textarea
+              value={suggestionText}
+              onChange={(e) => setSuggestionText(e.target.value)}
+              placeholder="Escribe tu sugerencia aquí..."
+              style={{
+                width: '100%',
+                minHeight: 120,
+                padding: 12,
+                borderRadius: 8,
+                border: `1px solid ${theme.primary}30`,
+                fontSize: 14,
+                resize: 'vertical',
+                background: theme.bg,
+                color: theme.text,
+                fontFamily: 'inherit'
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={handleSendSuggestion}
+                disabled={sendingSuggestion || !suggestionText.trim()}
+                className="btn-primary"
+                style={{ flex: 1 }}
+              >
+                {sendingSuggestion ? 'Enviando...' : '📧 Enviar sugerencia'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuggestionModal(false);
+                  setSuggestionText('');
+                }}
+                className="btn-ghost"
+                style={{ flex: 1 }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ background: theme.bg, color: theme.text, minHeight: '100vh' }}>
         <Routes>
           <Route path="/" element={<Navigate to={user ? "/menu" : "/login"} replace />} />
           <Route path="/login" element={user ? <Navigate to="/menu" replace /> : <Login />} />
-          <Route path="/menu" element={user ? <Menu user={user} profile={profile} /> : <Navigate to="/login" replace />} />
-
-          {/* TPV solo para no-admin */}
-          <Route
-            path="/tpv"
-            element={user && !profile?.isAdmin ? <TPV user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />}
+          
+          {/* Página de perfil - siempre accesible si está autenticado */}
+          <Route path="/perfil" element={user ? <Perfil user={user} profile={profile} onProfileUpdate={reloadProfile} /> : <Navigate to="/login" replace />} />
+          
+          {/* Menú - redirige a perfil si no está completo */}
+          <Route 
+            path="/menu" 
+            element={
+              user ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Menu user={user} profile={profile} />
+              ) : <Navigate to="/login" replace />
+            } 
           />
 
-          <Route path="/listados" element={user ? <Listados user={user} profile={profile} /> : <Navigate to="/login" replace />} />
+          {/* TPV solo para no-admin - redirige a perfil si no está completo */}
+          <Route
+            path="/tpv"
+            element={
+              user && !profile?.isAdmin ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <TPV user={user} profile={profile} />
+              ) : <Navigate to={user ? "/menu" : "/login"} replace />
+            }
+          />
 
-          {/* Páginas de gestión para admin */}
-          <Route path="/productos" element={user && profile?.isAdmin ? <Productos user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
+          {/* Listados - redirige a perfil si no está completo */}
+          <Route 
+            path="/listados" 
+            element={
+              user ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Listados user={user} profile={profile} />
+              ) : <Navigate to="/login" replace />
+            } 
+          />
 
-          {/* Página de gestión de socios para admin */}
-          <Route path="/socios" element={user && profile?.isAdmin ? <Socios user={user} profile={profile} /> : <Navigate to={user ? "/menu" : "/login"} replace />} />
+          {/* Páginas de gestión para admin - redirige a perfil si no está completo */}
+          <Route 
+            path="/productos" 
+            element={
+              user && profile?.isAdmin ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Productos user={user} profile={profile} />
+              ) : <Navigate to={user ? "/menu" : "/login"} replace />
+            } 
+          />
+
+          {/* Página de gestión de socios para admin - redirige a perfil si no está completo */}
+          <Route 
+            path="/socios" 
+            element={
+              user && profile?.isAdmin ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Socios user={user} profile={profile} />
+              ) : <Navigate to={user ? "/menu" : "/login"} replace />
+            } 
+          />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

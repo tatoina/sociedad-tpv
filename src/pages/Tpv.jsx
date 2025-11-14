@@ -50,6 +50,7 @@ export default function TPV({ user, profile }) {
   const [editingData, setEditingData] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const nav = useNavigate();
 
   useEffect(() => {
@@ -117,10 +118,21 @@ export default function TPV({ user, profile }) {
   const groupedCart = groupProductLines(cart);
   const total = groupedCart.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 1)), 0);
 
-  // Filtrar productos: favoritos o todos
-  const displayedProducts = showFavoritesOnly 
-    ? products.filter(p => favorites.includes(p.id))
-    : products;
+  // Obtener categorías únicas
+  const categories = [...new Set(products.map(p => p.category || "Sin categoría"))].sort();
+
+  // Filtrar productos según favoritos y categoría
+  let displayedProducts = products;
+  
+  if (showFavoritesOnly) {
+    displayedProducts = displayedProducts.filter(p => favorites.includes(p.id));
+  }
+  
+  if (selectedCategory !== "all") {
+    displayedProducts = displayedProducts.filter(p => 
+      (p.category || "Sin categoría") === selectedCategory
+    );
+  }
 
   const handleSaveSale = async () => {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
@@ -227,14 +239,35 @@ export default function TPV({ user, profile }) {
 
   return (
     <div style={{padding:12}}>
-      <h3 style={{marginBottom:12}}>TPV</h3>
-
       <div style={{display:'flex', flexDirection:'column', gap:12}}>
         <div style={{display:'grid', gridTemplateColumns:'1fr', gap:8}}>
           <div>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-              <h4 style={{margin:0, fontSize:20, fontWeight:700, color:'#111827'}}>Productos</h4>
-              <div style={{display:'flex', gap:12, alignItems:'center'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:12}}>
+              <h3 style={{margin:0, fontSize:24, fontWeight:700, color:'#111827'}}>TPV</h3>
+              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                {/* Selector de categoría */}
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  style={{
+                    fontSize: 14,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #e5e7eb',
+                    background: '#fff',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  <option value="all">📋 Todas las categorías</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+
                 {showFavoritesOnly && (
                   <span style={{
                     fontSize: 13,
