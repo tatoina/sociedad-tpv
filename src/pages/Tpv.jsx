@@ -328,7 +328,7 @@ export default function TPV({ user, profile }) {
                 </button>
               </div>
             </div>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:8}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:16}}>
               {displayedProducts.map(p => {
                 const isFavorite = favorites.includes(p.id);
                 return (
@@ -336,20 +336,25 @@ export default function TPV({ user, profile }) {
                     key={p.id} 
                     className="card" 
                     style={{
-                      padding: '8px',
-                      position: 'relative'
+                      padding: '16px',
+                      position: 'relative',
+                      borderRadius: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      textAlign: 'center'
                     }}
                   >
                     <button
                       onClick={() => handleToggleFavorite(p.id)}
                       style={{
                         position: 'absolute',
-                        top: 8,
-                        right: 8,
+                        top: 12,
+                        right: 12,
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: 20,
+                        fontSize: 22,
                         padding: 4,
                         lineHeight: 1,
                         zIndex: 2
@@ -359,26 +364,39 @@ export default function TPV({ user, profile }) {
                       {isFavorite ? "⭐" : "☆"}
                     </button>
 
-                    <div style={{paddingTop: 8}}>
-                      <div style={{fontWeight:600, fontSize:14, marginBottom:4}}>
+                    <div style={{paddingTop: 8, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8}}>
+                      <div style={{fontWeight:600, fontSize:15, marginBottom:4}}>
                         {p.label}
                       </div>
-                      <div style={{fontSize:11, color:'#666', marginBottom:8}}>
+                      <div style={{fontSize:12, color:'#666', marginBottom:4}}>
                         {p.category || "Sin categoría"}
                       </div>
-                      <div style={{fontSize:16, fontWeight:700, color:'#1976d2', marginBottom:8}}>
+                      <div style={{fontSize:18, fontWeight:700, color:'#1976d2', marginBottom:8}}>
                         {Number(p.price || 0).toFixed(2)} €
                       </div>
                       <button 
                         className="btn-primary full" 
                         style={{
                           marginTop: 0,
-                          fontSize: 13,
-                          padding: '8px'
+                          fontSize: 15,
+                          padding: '14px 20px',
+                          borderRadius: '50px',
+                          fontWeight: '600',
+                          minWidth: '120px',
+                          boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+                          transition: 'all 0.2s ease'
                         }}
                         onClick={() => addToCart(p)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.3)';
+                        }}
                       >
-                        Añadir al carrito
+                        Añadir
                       </button>
                     </div>
                   </div>

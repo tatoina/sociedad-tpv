@@ -424,32 +424,21 @@ export default function App() {
                           nav('/tpv');
                         }}
                         style={{
-                          width: 'calc(100% - 32px)',
-                          margin: '12px 16px 8px 16px',
-                          padding: '16px 20px',
+                          width: '100%',
+                          padding: '12px 16px',
                           border: 'none',
-                          background: theme.primary,
-                          color: '#fff',
-                          textAlign: 'center',
+                          background: 'transparent',
+                          color: theme.text,
+                          textAlign: 'left',
                           cursor: 'pointer',
-                          fontSize: '16px',
-                          fontWeight: '600',
+                          fontSize: '14px',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 10,
-                          borderRadius: '24px',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          transition: 'all 0.2s ease'
+                          gap: 8,
+                          borderBottom: `1px solid ${theme.primary}20`
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         🛒 TPV
                       </button>
@@ -460,32 +449,21 @@ export default function App() {
                         nav('/listados');
                       }}
                       style={{
-                        width: 'calc(100% - 32px)',
-                        margin: '8px 16px 12px 16px',
-                        padding: '16px 20px',
+                        width: '100%',
+                        padding: '12px 16px',
                         border: 'none',
-                        background: theme.secondary,
-                        color: '#fff',
-                        textAlign: 'center',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
                         cursor: 'pointer',
-                        fontSize: '16px',
-                        fontWeight: '600',
+                        fontSize: '14px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 10,
-                        borderRadius: '24px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        transition: 'all 0.2s ease'
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.05)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                       📊 Listados
                     </button>
