@@ -112,10 +112,10 @@ export default function Productos({ profile }) {
                 color: '#fff !important'
               }}>
                 <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Nombre</th>
-                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Categoría</th>
-                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Precio</th>
-                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Activo</th>
-                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Acciones</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', textAlign:'center'}}>Categoría</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', textAlign:'center'}}>Precio</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', textAlign:'center'}}>Activo</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', textAlign:'center'}}>Acciones</th>
               </tr>
             </thead>
             <tbody>
