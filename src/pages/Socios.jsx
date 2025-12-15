@@ -1,6 +1,6 @@
 // src/pages/Socios.jsx
 import React, { useState, useEffect } from "react";
-import { queryAllUsers, updateUserProfile, resetUserPassword as sendPasswordReset } from "../firebase";
+import { queryAllUsers, updateUserProfile, resetUserPassword as sendPasswordReset, deleteUser } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
 export default function Socios({ user, profile }) {
@@ -67,6 +67,20 @@ export default function Socios({ user, profile }) {
     } catch (err) {
       console.error("Error restableciendo contraseña:", err);
       setMessage("Error enviando email de restablecimiento");
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName, userEmail) => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar a ${userName} (${userEmail})?\n\nEsta acción NO se puede deshacer.`)) {
+      return;
+    }
+    try {
+      await deleteUser(userId);
+      setMessage(`Usuario ${userName} eliminado correctamente`);
+      loadUsers();
+    } catch (err) {
+      console.error("Error eliminando usuario:", err);
+      setMessage(`Error eliminando usuario: ${err.message}`);
     }
   };
 
@@ -251,6 +265,20 @@ export default function Socios({ user, profile }) {
                         }}
                       >
                         Reset Pass
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u.id, u.name || "usuario", u.email)}
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: 12,
+                          backgroundColor: "#d32f2f",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 4,
+                          cursor: "pointer"
+                        }}
+                      >
+                        Borrar
                       </button>
                     </div>
                   </td>

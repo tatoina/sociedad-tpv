@@ -33,6 +33,17 @@ export default function Eventos({ user, profile }) {
   const [nuevaFechaCena, setNuevaFechaCena] = useState('');
   const nav = useNavigate();
 
+  // Bloquear acceso a admin
+  if (profile?.isAdmin) {
+    return (
+      <div style={{padding: 20, textAlign: 'center'}}>
+        <h2>Acceso no permitido</h2>
+        <p>Los administradores no pueden inscribirse a eventos.</p>
+        <button className="btn-primary" onClick={() => nav('/menu')}>Volver al Menú</button>
+      </div>
+    );
+  }
+
   // Función para obtener el día de la semana en español
   const getDayOfWeek = (dateString) => {
     if (!dateString) return '';

@@ -799,14 +799,12 @@ export default function App() {
             } 
           />
 
-          {/* Listados TPV - accesible solo para usuarios NO admin - redirige a perfil si no está completo */}
+          {/* Listados TPV - accesible para todos los autenticados, admin ve todos los gastos */}
           <Route 
             path="/listados-tpv" 
             element={
               user ? (
-                profile?.isAdmin ? (
-                  <Navigate to="/menu" replace />
-                ) : !isProfileComplete(profile) ? (
+                !profile?.isAdmin && !isProfileComplete(profile) ? (
                   <Navigate to="/perfil" replace />
                 ) : (
                   <ListadosTPV user={user} profile={profile} />

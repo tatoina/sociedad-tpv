@@ -133,6 +133,18 @@ export async function resetUserPassword(email) {
   return true;
 }
 
+export async function deleteUser(uid) {
+  if (!uid) throw new Error("UID requerido");
+  try {
+    const userRef = doc(db, "users", uid);
+    await deleteDoc(userRef);
+    return { success: true };
+  } catch (err) {
+    console.error("Error eliminando usuario:", err);
+    throw err;
+  }
+}
+
 // ---- Photo Management ----
 export async function uploadUserPhoto(uid, file) {
   if (!uid || !file) throw new Error("UID y archivo requeridos");
@@ -315,19 +327,22 @@ export async function queryExpenses({ uid, isAdmin = false, startDate = null, en
 export async function getAllSocios() {
   try {
     const snapshot = await getDocs(collection(db, "users"));
-    return snapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      .filter(user => !user.isAdmin && user.email !== "admin@admin");
+    console.log('📊 Total users en DB:', snapshot.docs.length);
+    const allUsers = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    console.log('👥 Todos los users:', allUsers);
+    const socios = allUsers.filter(user => !user.isAdmin && user.email !== "admin@admin");
+    console.log('✅ Socios filtrados (no admins):', socios);
+    return socios;
   } catch (err) {
     console.error("Error getting socios:", err);
     throw err;
   }
 }
 
-export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null } = {}) {
+export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null, attendees = null } = {}) {
   if (!uid) throw new Error("UID requerido para addSale");
   const payload = {
     uid,
@@ -338,6 +353,7 @@ export async function addSale({ uid, userEmail, item, category, amount, date = n
     amount: Number(amount) || 0,
     productId: productId || null,
     productLines: productLines || null,
+    attendees: attendees || null,
     date: date ? date : serverTimestamp(),
     createdAt: serverTimestamp()
   };

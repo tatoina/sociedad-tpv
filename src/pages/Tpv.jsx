@@ -54,7 +54,7 @@ export default function TPV({ user, profile }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isForSociedad, setIsForSociedad] = useState(false);
   const [socios, setSocios] = useState([]);
-  const [sociosAttendance, setSociosAttendance] = useState({});
+  const [selectedSocios, setSelectedSocios] = useState({});
   const nav = useNavigate();
 
   useEffect(() => {
@@ -106,12 +106,13 @@ export default function TPV({ user, profile }) {
       if (isForSociedad) {
         try {
           const allSocios = await getAllSocios();
+          console.log('🔍 Socios obtenidos:', allSocios);
           if (mounted) {
             setSocios(allSocios);
-            // Inicializar attendance a 0 para todos
-            const initialAttendance = {};
-            allSocios.forEach(s => { initialAttendance[s.id] = 0; });
-            setSociosAttendance(initialAttendance);
+            // Inicializar todos como seleccionados por defecto
+            const initialSelection = {};
+            allSocios.forEach(s => { initialSelection[s.id] = true; });
+            setSelectedSocios(initialSelection);
           }
         } catch (err) {
           console.error("Error loading socios:", err);
@@ -165,11 +166,11 @@ export default function TPV({ user, profile }) {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
     if (!user || !user.uid) { alert("No autenticado"); return; }
     
-    // Si es para la sociedad, validar asistentes
+    // Si es para la sociedad, validar que al menos un socio esté seleccionado
     if (isForSociedad) {
-      const totalAttendees = Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0);
-      if (totalAttendees === 0) {
-        alert("Debes indicar al menos 1 asistente");
+      const selectedCount = Object.values(selectedSocios).filter(Boolean).length;
+      if (selectedCount === 0) {
+        alert("Debes seleccionar al menos 1 socio");
         return;
       }
     }
@@ -181,33 +182,35 @@ export default function TPV({ user, profile }) {
 
     try {
       if (isForSociedad) {
-        // Modo sociedad: repartir entre socios
-        const totalAttendees = Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0);
-        const amountPerAttendee = computedTotal / totalAttendees;
+        // Modo sociedad: repartir entre socios seleccionados
+        const selectedSociosList = Object.entries(selectedSocios)
+          .filter(([_, isSelected]) => isSelected)
+          .map(([socioId, _]) => socioId);
+        
+        const selectedCount = selectedSociosList.length;
+        const amountPerSocio = computedTotal / selectedCount;
         
         const salesPromises = [];
         
-        // Crear un gasto por cada socio que tenga asistentes
-        for (const [socioId, attendees] of Object.entries(sociosAttendance)) {
-          if (Number(attendees) > 0) {
-            const socio = socios.find(s => s.id === socioId);
-            const socioAmount = amountPerAttendee * Number(attendees);
-            
-            salesPromises.push(
-              addSale({
-                uid: socioId,
-                userEmail: socio?.email || "",
-                item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`,
-                category: "sociedad",
-                amount: socioAmount,
-                productLines: groupedLines
-              })
-            );
-          }
+        // Crear un gasto por cada socio seleccionado
+        for (const socioId of selectedSociosList) {
+          const socio = socios.find(s => s.id === socioId);
+          
+          salesPromises.push(
+            addSale({
+              uid: socioId,
+              userEmail: socio?.email || "",
+              item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")}`,
+              category: "sociedad",
+              amount: amountPerSocio,
+              productLines: groupedLines,
+              attendees: 1
+            })
+          );
         }
         
         await Promise.all(salesPromises);
-        alert(`Gasto repartido entre ${Object.values(sociosAttendance).filter(a => a > 0).length} socios\nTotal: ${computedTotal.toFixed(2)} €\nPor asistente: ${amountPerAttendee.toFixed(2)} €`);
+        alert(`Gasto repartido entre ${selectedCount} socios\nTotal: ${computedTotal.toFixed(2)} €\nPor socio: ${amountPerSocio.toFixed(2)} €`);
         
       } else {
         // Modo normal: guardar para el usuario actual
@@ -605,30 +608,58 @@ export default function TPV({ user, profile }) {
               {isForSociedad && (
                 <div style={{marginTop:12, padding:12, background:'#fef3c7', borderRadius:8, border:'2px solid #f59e0b'}}>
                   <div style={{fontWeight:700, marginBottom:8, fontSize:14, color:'#92400e'}}>
-                    Indica los asistentes por socio:
+                    Selecciona los socios que asistieron:
                   </div>
-                  <div style={{maxHeight:200, overflowY:'auto'}}>
-                    {socios.map(socio => (
-                      <div key={socio.id} style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
-                        <div style={{flex:1, fontSize:13, fontWeight:600}}>
-                          {socio.name} {socio.surname}
-                        </div>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          value={sociosAttendance[socio.id] || 0}
-                          onChange={(e) => setSociosAttendance(prev => ({
-                            ...prev,
-                            [socio.id]: Math.max(0, Number(e.target.value) || 0)
-                          }))}
-                          style={{width:50, padding:4, fontSize:13, textAlign:'center'}}
-                        />
+                  {socios.length === 0 ? (
+                    <div style={{padding:12, textAlign:'center', color:'#92400e', fontSize:13}}>
+                      No se encontraron socios. Verifica que haya usuarios registrados (no admins).
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{maxHeight:200, overflowY:'auto'}}>
+                        {socios.map(socio => (
+                          <label 
+                            key={socio.id} 
+                            style={{
+                              display:'flex', 
+                              alignItems:'center', 
+                              gap:10, 
+                              marginBottom:10,
+                              padding:8,
+                              background: selectedSocios[socio.id] ? '#fef9e7' : '#fff',
+                              borderRadius:6,
+                              border: selectedSocios[socio.id] ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                              cursor:'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={selectedSocios[socio.id] || false}
+                              onChange={(e) => {
+                                setSelectedSocios(prev => ({
+                                  ...prev,
+                                  [socio.id]: e.target.checked
+                                }));
+                              }}
+                              style={{width:18, height:18, cursor:'pointer'}}
+                            />
+                            <div style={{flex:1, fontSize:13}}>
+                              <div style={{fontWeight:600, color: selectedSocios[socio.id] ? '#92400e' : '#374151'}}>
+                                {socio.name || socio.email} {socio.surname || ''}
+                              </div>
+                              <div style={{fontSize:11, color:'#78716c', marginTop:2}}>
+                                {socio.email}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div style={{marginTop:8, fontSize:12, color:'#92400e', fontStyle:'italic'}}>
-                    Total asistentes: {Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0)}
-                  </div>
+                      <div style={{marginTop:8, fontSize:12, color:'#92400e', fontWeight:600}}>
+                        ✓ Socios seleccionados: {Object.values(selectedSocios).filter(Boolean).length} de {socios.length}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               
@@ -657,6 +688,7 @@ export default function TPV({ user, profile }) {
                   <tr>
                     <th style={{textAlign:'left', padding:8}}>Fecha</th>
                     <th style={{textAlign:'left', padding:8}}>Productos</th>
+                    <th style={{textAlign:'center', padding:8}}>Tipo</th>
                     <th style={{textAlign:'right', padding:8}}>Total</th>
                     <th style={{padding:8}}>Acciones</th>
                   </tr>
@@ -704,6 +736,39 @@ export default function TPV({ user, profile }) {
                         )}
                       </td>
 
+                      <td style={{padding:8, textAlign:'center'}}>
+                        {h.category === 'sociedad' ? (
+                          <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:4}}>
+                            <span style={{
+                              padding: '4px 8px',
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              backgroundColor: '#fff3cd',
+                              color: '#856404',
+                              border: '1px solid #ffc107'
+                            }}>
+                              🏛️ SOCIEDAD
+                            </span>
+                            {h.attendees && (
+                              <span style={{fontSize: 11, color: '#666'}}>
+                                {h.attendees} asist.
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: 12,
+                            fontSize: 11,
+                            backgroundColor: '#e3f2fd',
+                            color: '#1565c0'
+                          }}>
+                            Personal
+                          </span>
+                        )}
+                      </td>
+
                       <td style={{padding:8, textAlign:'right'}}>{Number(h.amount || 0).toFixed(2)} €</td>
 
                       <td style={{padding:8}}>
@@ -714,8 +779,14 @@ export default function TPV({ user, profile }) {
                           </div>
                         ) : (
                           <div style={{display:'flex', flexDirection:'column', gap:8}}>
-                            <button className="btn-small" onClick={() => startEditTicket(h)}>Editar</button>
-                            <button className="btn-ghost" onClick={() => deleteTicket(h.id)}>Borrar</button>
+                            {/* Solo mostrar Editar si NO es sociedad o si el usuario es admin */}
+                            {(h.category !== 'sociedad' || profile?.isAdmin) && (
+                              <button className="btn-small" onClick={() => startEditTicket(h)}>Editar</button>
+                            )}
+                            {/* Solo admin puede borrar tickets de sociedad */}
+                            {(h.category !== 'sociedad' || profile?.isAdmin) && (
+                              <button className="btn-ghost" onClick={() => deleteTicket(h.id)}>Borrar</button>
+                            )}
                           </div>
                         )}
                       </td>

@@ -8,17 +8,20 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Users: only authenticated user can read their own profile; admin can read and update all
+    // Users: authenticated users can read all profiles (needed for socios list); can only update their own or admin
     match /users/{userId} {
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, list: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow read, list: if request.auth != null;
       allow update: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
-    // Expenses: users can create their own, read their own or admin can read all
+    // Expenses: users can create their own or expenses for society (category: "sociedad")
     match /expenses/{docId} {
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && (
+        request.resource.data.uid == request.auth.uid || 
+        request.resource.data.category == "sociedad"
+      );
       allow read: if request.auth != null && (request.auth.uid == resource.data.uid || isAdmin());
       allow list: if request.auth != null;
       allow update, delete: if request.auth != null && (request.auth.uid == resource.data.uid || isAdmin());
