@@ -74,7 +74,7 @@ export default function Menu({ user, profile }) {
         {!profile?.isAdmin && <MenuItem to="/tpv" icon="🛍️" label="TPV" />}
         {!profile?.isAdmin && <MenuItem to="/eventos" icon="📅" label="Eventos" />}
         {!profile?.isAdmin && <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" />}
-        {profile?.isAdmin && <MenuItem to="/listados-tpv" icon="💰" label="Listados Gastos" isAdmin />}
+        {profile?.isAdmin && <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />}
       </div>
