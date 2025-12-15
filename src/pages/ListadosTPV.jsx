@@ -549,17 +549,17 @@ export default function ListadosTPV({ user, profile }) {
               />
             </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-            Cargando...
-          </div>
-        ) : filteredExpenses.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-            No hay tickets para mostrar
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {filteredExpenses.map((exp, index) => {
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+                Cargando...
+              </div>
+            ) : filteredExpenses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+                No hay tickets para mostrar
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {filteredExpenses.map((exp, index) => {
               const lines = exp.productLines || [];
               const total = lines.reduce((sum, line) => {
                 const qty = Number(line.qty || 1);
@@ -667,6 +667,8 @@ export default function ListadosTPV({ user, profile }) {
             })}
           </div>
         )}
+        </div>
+      )}
       </div>
     </div>
   );

@@ -52,9 +52,11 @@ export default function TPV({ user, profile }) {
   const [favorites, setFavorites] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [showProducts, setShowProducts] = useState(true);
   const [isForSociedad, setIsForSociedad] = useState(false);
   const [socios, setSocios] = useState([]);
   const [selectedSocios, setSelectedSocios] = useState({});
+  const [attendeesCount, setAttendeesCount] = useState({});
   const nav = useNavigate();
 
   useEffect(() => {
@@ -111,8 +113,13 @@ export default function TPV({ user, profile }) {
             setSocios(allSocios);
             // Inicializar todos como seleccionados por defecto
             const initialSelection = {};
-            allSocios.forEach(s => { initialSelection[s.id] = true; });
+            const initialAttendees = {};
+            allSocios.forEach(s => { 
+              initialSelection[s.id] = true; 
+              initialAttendees[s.id] = 1;
+            });
             setSelectedSocios(initialSelection);
+            setAttendeesCount(initialAttendees);
           }
         } catch (err) {
           console.error("Error loading socios:", err);
@@ -182,35 +189,41 @@ export default function TPV({ user, profile }) {
 
     try {
       if (isForSociedad) {
-        // Modo sociedad: repartir entre socios seleccionados
+        // Modo sociedad: repartir entre socios seleccionados según asistentes
         const selectedSociosList = Object.entries(selectedSocios)
           .filter(([_, isSelected]) => isSelected)
           .map(([socioId, _]) => socioId);
         
-        const selectedCount = selectedSociosList.length;
-        const amountPerSocio = computedTotal / selectedCount;
+        // Calcular total de asistentes
+        const totalAttendees = selectedSociosList.reduce((sum, socioId) => {
+          return sum + Number(attendeesCount[socioId] || 1);
+        }, 0);
+        
+        const amountPerAttendee = computedTotal / totalAttendees;
         
         const salesPromises = [];
         
         // Crear un gasto por cada socio seleccionado
         for (const socioId of selectedSociosList) {
           const socio = socios.find(s => s.id === socioId);
+          const attendees = Number(attendeesCount[socioId] || 1);
+          const socioAmount = amountPerAttendee * attendees;
           
           salesPromises.push(
             addSale({
               uid: socioId,
               userEmail: socio?.email || "",
-              item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")}`,
+              item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`,
               category: "sociedad",
-              amount: amountPerSocio,
+              amount: socioAmount,
               productLines: groupedLines,
-              attendees: 1
+              attendees: attendees
             })
           );
         }
         
         await Promise.all(salesPromises);
-        alert(`Gasto repartido entre ${selectedCount} socios\nTotal: ${computedTotal.toFixed(2)} €\nPor socio: ${amountPerSocio.toFixed(2)} €`);
+        alert(`Gasto repartido entre ${selectedSociosList.length} socios (${totalAttendees} asistentes)\nTotal: ${computedTotal.toFixed(2)} €\nPor asistente: ${amountPerAttendee.toFixed(2)} €`);
         
       } else {
         // Modo normal: guardar para el usuario actual
@@ -352,6 +365,25 @@ export default function TPV({ user, profile }) {
                 >
                   📊 Ver Listados TPV
                 </button>
+                <button
+                  onClick={() => setShowProducts(!showProducts)}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: '#3b82f6',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 6px rgba(59, 130, 246, 0.3)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                >
+                  {showProducts ? '▼ Ocultar Productos' : '▶ Mostrar Productos'}
+                </button>
                 {/* Selector de categoría */}
                 <select
                   value={selectedCategory}
@@ -435,6 +467,8 @@ export default function TPV({ user, profile }) {
                 </button>
               </div>
             </div>
+            {showProducts && (
+            <>
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:12}}>
               {displayedProducts.map(p => {
                 const isFavorite = favorites.includes(p.id);
@@ -546,6 +580,8 @@ export default function TPV({ user, profile }) {
                 </div>
               </div>
             )}
+            </>
+            )}
           </div>
 
           <div>
@@ -618,7 +654,7 @@ export default function TPV({ user, profile }) {
                     <>
                       <div style={{maxHeight:200, overflowY:'auto'}}>
                         {socios.map(socio => (
-                          <label 
+                          <div
                             key={socio.id} 
                             style={{
                               display:'flex', 
@@ -629,7 +665,6 @@ export default function TPV({ user, profile }) {
                               background: selectedSocios[socio.id] ? '#fef9e7' : '#fff',
                               borderRadius:6,
                               border: selectedSocios[socio.id] ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                              cursor:'pointer',
                               transition: 'all 0.2s'
                             }}
                           >
@@ -652,11 +687,41 @@ export default function TPV({ user, profile }) {
                                 {socio.email}
                               </div>
                             </div>
-                          </label>
+                            {selectedSocios[socio.id] && (
+                              <input 
+                                type="number" 
+                                min="1" 
+                                value={attendeesCount[socio.id] || 1}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAttendeesCount(prev => ({
+                                    ...prev,
+                                    [socio.id]: val === '' ? 1 : Math.max(1, Number(val))
+                                  }));
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.target.select()}
+                                style={{
+                                  width:60, 
+                                  padding:'6px 8px', 
+                                  fontSize:13, 
+                                  textAlign:'center',
+                                  border:'2px solid #f59e0b',
+                                  borderRadius:6,
+                                  fontWeight:600,
+                                  color:'#92400e'
+                                }}
+                              />
+                            )}
+                          </div>
                         ))}
                       </div>
                       <div style={{marginTop:8, fontSize:12, color:'#92400e', fontWeight:600}}>
                         ✓ Socios seleccionados: {Object.values(selectedSocios).filter(Boolean).length} de {socios.length}
+                        {' • '}
+                        Total asistentes: {Object.entries(selectedSocios)
+                          .filter(([_, selected]) => selected)
+                          .reduce((sum, [socioId, _]) => sum + Number(attendeesCount[socioId] || 1), 0)}
                       </div>
                     </>
                   )}
