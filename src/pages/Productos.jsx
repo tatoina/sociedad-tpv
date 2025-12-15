@@ -9,6 +9,9 @@ export default function Productos({ profile }) {
   const [editingId, setEditingId] = useState(null);
   const [rowForm, setRowForm] = useState({ label: "", category: "", price: 0, active: true });
   const [newRow, setNewRow] = useState({ label: "", category: "", price: 0, active: true });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState("label");
+  const [sortOrder, setSortOrder] = useState("asc");
   const nav = useNavigate();
 
   useEffect(() => {
@@ -68,6 +71,40 @@ export default function Productos({ profile }) {
     }
   };
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const filteredAndSortedProducts = products
+    .filter(p => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        (p.label || "").toLowerCase().includes(searchLower) ||
+        (p.category || "").toLowerCase().includes(searchLower)
+      );
+    })
+    .sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === "price") {
+        aVal = Number(a.price || 0);
+        bVal = Number(b.price || 0);
+      } else if (sortField === "active") {
+        aVal = a.active ? 1 : 0;
+        bVal = b.active ? 1 : 0;
+      } else {
+        aVal = (a[sortField] || "").toString().toLowerCase();
+        bVal = (b[sortField] || "").toString().toLowerCase();
+      }
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
   return (
     <div style={{padding:12}}>
       <div style={{
@@ -104,22 +141,65 @@ export default function Productos({ profile }) {
       </div>
 
       {loading ? <div>Cargando...</div> : (
-        <div style={{overflowX:'auto'}}>
-          <table style={{width:'100%', borderCollapse:'collapse', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
-            <thead>
-              <tr style={{
-                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-                color: '#fff !important'
-              }}>
-                <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Nombre</th>
-                <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Categoría</th>
-                <th style={{textAlign:'right', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Precio</th>
-                <th style={{textAlign:'center', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Activo</th>
-                <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map(p => (
+        <>
+          <div style={{marginBottom: 16}}>
+            <input
+              type="text"
+              placeholder="🔍 Buscar por nombre o categoría..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                fontSize: 14,
+                border: '2px solid #e5e7eb',
+                borderRadius: 8,
+                outline: 'none',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#1976d2'}
+              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+            />
+            <div style={{marginTop: 8, fontSize: 13, color: '#6b7280'}}>
+              Mostrando {filteredAndSortedProducts.length} de {products.length} productos
+            </div>
+          </div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%', borderCollapse:'collapse', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+              <thead>
+                <tr style={{
+                  background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                  color: '#fff !important'
+                }}>
+                  <th 
+                    onClick={() => handleSort('label')} 
+                    style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', cursor: 'pointer', userSelect: 'none'}}
+                  >
+                    Nombre {sortField === 'label' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    onClick={() => handleSort('category')} 
+                    style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', cursor: 'pointer', userSelect: 'none'}}
+                  >
+                    Categoría {sortField === 'category' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    onClick={() => handleSort('price')} 
+                    style={{textAlign:'right', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', cursor: 'pointer', userSelect: 'none'}}
+                  >
+                    Precio {sortField === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    onClick={() => handleSort('active')} 
+                    style={{textAlign:'center', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none', cursor: 'pointer', userSelect: 'none'}}
+                  >
+                    Activo {sortField === 'active' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAndSortedProducts.map(p => (
                 <tr key={p.id} style={{borderTop:'1px solid #eee'}}>
                   <td style={{padding:8}}>
                     {editingId === p.id ? (
@@ -159,6 +239,7 @@ export default function Productos({ profile }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
