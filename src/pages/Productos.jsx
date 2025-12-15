@@ -82,7 +82,15 @@ export default function Productos({ profile }) {
       </div>
 
       <div style={{marginBottom:12}}>
-        <h4 style={{marginBottom:8}}>Añadir producto</h4>
+        <div style={{
+          background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+          color: '#fff',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          marginBottom: 12
+        }}>
+          <h4 style={{margin:0, fontSize:18, fontWeight:600}}>Añadir producto</h4>
+        </div>
         <div style={{display:'flex', flexDirection:'column', gap:8}}>
           <input className="full-input" placeholder="Nombre" value={newRow.label} onChange={(e) => setNewRow(r => ({ ...r, label: e.target.value }))} />
           <input className="full-input" placeholder="Categoría" value={newRow.category} onChange={(e) => setNewRow(r => ({ ...r, category: e.target.value }))} />
