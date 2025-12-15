@@ -105,17 +105,17 @@ export default function Productos({ profile }) {
 
       {loading ? <div>Cargando...</div> : (
         <div style={{overflowX:'auto'}}>
-          <table className="table-responsive" style={{width:'100%', borderCollapse:'collapse'}}>
+          <table style={{width:'100%', borderCollapse:'collapse', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
             <thead>
               <tr style={{
                 background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-                color: '#fff'
+                color: '#fff !important'
               }}>
-                <th style={{textAlign:'left', padding:12, fontWeight:600}}>Nombre</th>
-                <th style={{padding:12, fontWeight:600}}>Categoría</th>
-                <th style={{padding:12, fontWeight:600}}>Precio</th>
-                <th style={{padding:12, fontWeight:600}}>Activo</th>
-                <th style={{padding:12, fontWeight:600}}>Acciones</th>
+                <th style={{textAlign:'left', padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Nombre</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Categoría</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Precio</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Activo</th>
+                <th style={{padding:12, fontWeight:600, color: '#fff', borderBottom: 'none'}}>Acciones</th>
               </tr>
             </thead>
             <tbody>
