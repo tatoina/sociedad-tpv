@@ -31,6 +31,7 @@ import {
   getDownloadURL,
   deleteObject
 } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 // --- CONFIG: reemplaza por tu firebaseConfig real si hace falta ---
 const firebaseConfig = {
@@ -47,6 +48,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
 // ---- Auth helpers ----
 export async function registerWithEmail(profileData, password, photoFile = null) {
@@ -306,6 +308,22 @@ export async function queryExpenses({ uid, isAdmin = false, startDate = null, en
       return db_ - da;
     });
     return items;
+  }
+}
+
+// Obtener todos los usuarios/socios (no admins y no admin@admin)
+export async function getAllSocios() {
+  try {
+    const snapshot = await getDocs(collection(db, "users"));
+    return snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(user => !user.isAdmin && user.email !== "admin@admin");
+  } catch (err) {
+    console.error("Error getting socios:", err);
+    throw err;
   }
 }
 
@@ -593,5 +611,17 @@ export async function getEventConfig(eventType) {
   } catch (err) {
     console.error("getEventConfig error:", err);
     return null;
+  }
+}
+
+// Enviar notificación de nueva fecha de cena
+export async function notificarFechaCena(eventType, fechaCena) {
+  try {
+    const notificarFn = httpsCallable(functions, 'notificarFechaCena');
+    const result = await notificarFn({ eventType, fechaCena });
+    return result.data;
+  } catch (err) {
+    console.error("notificarFechaCena error:", err);
+    throw err;
   }
 }

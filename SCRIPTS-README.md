@@ -1,5 +1,46 @@
 # Scripts de limpieza
 
+## 🧹 clear-data.js - Borrar datos de desarrollo
+
+**ADVERTENCIA**: Este script elimina datos de Firestore de forma IRREVERSIBLE.
+
+### Uso:
+
+```powershell
+# Borrar inscripciones de eventos
+node clear-data.js eventRegistrations
+
+# Borrar configuraciones de eventos
+node clear-data.js eventConfigs
+
+# Borrar gastos
+node clear-data.js expenses
+
+# Borrar productos
+node clear-data.js products
+
+# Borrar múltiples colecciones
+node clear-data.js eventRegistrations eventConfigs
+
+# Borrar todo (excepto usuarios)
+node clear-data.js all
+```
+
+### Colecciones disponibles:
+- `eventRegistrations`: Inscripciones de eventos (CUMPLEAÑOS MES, FIESTAS, etc.)
+- `eventConfigs`: Configuración de eventos (fechas de cenas, etc.)
+- `expenses`: Gastos/tickets del TPV
+- `products`: Productos del catálogo
+- `all`: Todas las anteriores (NO borra usuarios)
+
+### Seguridad:
+- Espera 3 segundos antes de ejecutar (puedes cancelar con Ctrl+C)
+- Muestra advertencias claras
+- Muestra progreso durante el borrado
+- NUNCA borra usuarios
+
+---
+
 ## ⚠️ clear-gastos.js - Borrar todos los gastos
 
 **ADVERTENCIA**: Este script elimina TODOS los gastos de Firestore de forma IRREVERSIBLE.

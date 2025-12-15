@@ -1,7 +1,7 @@
 // src/pages/Login.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerWithEmail, loginWithEmail } from "../firebase";
+import { registerWithEmail, loginWithEmail, resetUserPassword } from "../firebase";
 
 export default function Login() {
   const [mode, setMode] = useState("entrar"); // 'entrar' or 'registrarse'
@@ -76,6 +76,26 @@ export default function Login() {
     } finally { setLoading(false); }
   };
 
+  const handleResetPassword = async () => {
+    if (!form.email) {
+      alert('Por favor introduce tu email primero');
+      return;
+    }
+
+    if (!confirm(`¿Enviar email de recuperación a ${form.email}?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetUserPassword(form.email);
+      alert('Email enviado. Revisa tu bandeja de entrada (y spam) para restablecer tu contraseña.');
+    } catch (err) {
+      console.error("Reset password error:", err);
+      alert(`Error: ${err.message || err}`);
+    } finally { setLoading(false); }
+  };
+
   // Layout requested: vertical order — Email, Contraseña, Entrar (button), Registrarse (button)
   // For 'registrarse' mode we show additional profile fields above the buttons.
   return (
@@ -147,17 +167,30 @@ export default function Login() {
         />
 
         <button className="btn-primary full" type="submit" disabled={loading}>
-          Entrar
+          {mode === "entrar" ? "Entrar" : "Registrarse"}
         </button>
+
+        {/* Botón de restablecer contraseña solo en modo entrar */}
+        {mode === "entrar" && (
+          <button
+            type="button"
+            className="btn-ghost full"
+            onClick={handleResetPassword}
+            disabled={loading}
+            style={{ fontSize: 13, color: '#1976d2' }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
 
         {/* Registrarse button below Entrar; toggles mode */}
         <button
           type="button"
           className="btn-ghost full"
           onClick={() => setMode(prev => (prev === "entrar" ? "registrarse" : "entrar"))}
-          disabled={loading && mode === "registrarse"}
+          disabled={loading}
         >
-          {mode === "entrar" ? "Registrarse" : "Volver a Entrar"}
+          {mode === "entrar" ? "¿No tienes cuenta? Regístrate" : "Ya tengo cuenta"}
         </button>
       </form>
 

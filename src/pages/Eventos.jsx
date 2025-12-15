@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 
 const EVENT_TYPES = [
   'RESERVAR MESA',
@@ -27,6 +29,8 @@ export default function Eventos({ user, profile }) {
   const [myRegistrations, setMyRegistrations] = useState([]);
   const [otherRegistrations, setOtherRegistrations] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [showModalFecha, setShowModalFecha] = useState(false);
+  const [nuevaFechaCena, setNuevaFechaCena] = useState('');
   const nav = useNavigate();
 
   // Función para obtener el día de la semana en español
@@ -35,6 +39,59 @@ export default function Eventos({ user, profile }) {
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const date = new Date(dateString + 'T00:00:00');
     return days[date.getDay()];
+  };
+
+  // Función para verificar si una fecha ya pasó
+  const isFechaPassada = (fechaStr) => {
+    if (!fechaStr) return true;
+    
+    let fechaCena;
+    
+    // Intentar parsear el formato YYYY-MM-DD
+    if (fechaStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      fechaCena = new Date(fechaStr + 'T00:00:00');
+    } else {
+      // Intentar parsear el formato DD/MM/YYYY
+      const partes = fechaStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (partes) {
+        const dia = parseInt(partes[1], 10);
+        const mes = parseInt(partes[2], 10) - 1; // Mes es 0-indexed
+        const año = parseInt(partes[3], 10);
+        fechaCena = new Date(año, mes, dia);
+      } else {
+        return false;
+      }
+    }
+    
+    // Comparar solo las fechas (sin horas)
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    fechaCena.setHours(0, 0, 0, 0);
+    
+    return fechaCena < hoy;
+  };
+
+  // Función para formatear fecha YYYY-MM-DD a formato legible
+  const formatearFecha = (fechaStr) => {
+    if (!fechaStr) return '';
+    
+    // Si ya está en formato legible, devolverla tal cual
+    if (fechaStr.match(/\d{1,2}\/\d{1,2}\/\d{4}/)) {
+      return fechaStr;
+    }
+    
+    // Si está en formato YYYY-MM-DD, convertir
+    if (fechaStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const date = new Date(fechaStr + 'T00:00:00');
+      const dia = date.getDate();
+      const mes = date.getMonth() + 1;
+      const año = date.getFullYear();
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const diaSemana = dias[date.getDay()];
+      return `${diaSemana} ${dia}/${mes}/${año}`;
+    }
+    
+    return fechaStr;
   };
 
   // Cargar todas las inscripciones y fecha de próxima cena
@@ -198,10 +255,14 @@ export default function Eventos({ user, profile }) {
       return;
     }
 
-    const fechaCena = prompt('¿Qué día es la próxima cena? (ej: Viernes 20 de Diciembre):');
-    
-    if (!fechaCena || fechaCena.trim() === '') {
-      alert('Debes indicar cuándo será la cena');
+    // Mostrar modal para seleccionar fecha
+    setNuevaFechaCena('');
+    setShowModalFecha(true);
+  };
+
+  const confirmarBorradoConFecha = async () => {
+    if (!nuevaFechaCena) {
+      alert('Debes seleccionar una fecha para la cena');
       return;
     }
 
@@ -209,24 +270,44 @@ export default function Eventos({ user, profile }) {
       return;
     }
 
+    setLoading(true);
     try {
       const { setEventConfig } = await import('../firebase');
       
       // Guardar la fecha de la cena
-      await setEventConfig('CUMPLEAÑOS MES', { fechaCena: fechaCena.trim() });
+      await setEventConfig('CUMPLEAÑOS MES', { fechaCena: nuevaFechaCena });
       
       // Borrar todas las inscripciones
       const count = await deleteAllEventRegistrationsByType('CUMPLEAÑOS MES');
       
-      alert(`Se han eliminado ${count} inscripciones.\nPróxima cena: ${fechaCena}`);
-      
       // Actualizar estado local
-      setFechaProximaCena(fechaCena.trim());
+      setFechaProximaCena(nuevaFechaCena);
+      setShowModalFecha(false);
+      setNuevaFechaCena('');
+      
+      alert(`Se han eliminado ${count} inscripciones.\nPróxima cena: ${formatearFecha(nuevaFechaCena)}\n\nEnviando notificaciones por email...`);
+      
+      // Enviar notificaciones por email (en segundo plano)
+      const notificarFechaCena = httpsCallable(functions, 'notificarFechaCena');
+      notificarFechaCena({
+        eventType: 'CUMPLEAÑOS MES',
+        fechaCena: nuevaFechaCena
+      })
+        .then(result => {
+          console.log('Resultado envío de emails:', result.data);
+          alert(`✅ ${result.data.message}`);
+        })
+        .catch(err => {
+          console.error('Error enviando emails:', err);
+          alert(`⚠️ Error al enviar algunos emails: ${err.message}`);
+        });
       
       loadRegistrations();
     } catch (err) {
       console.error('Error borrando inscripciones:', err);
       alert('Error al borrar las inscripciones: ' + (err.message || err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -362,22 +443,31 @@ export default function Eventos({ user, profile }) {
             {/* CUMPLEAÑOS MES: Solo comensales */}
             {eventType === 'CUMPLEAÑOS MES' && (
               <>
-                {fechaProximaCena && (
-                  <div style={{
-                    padding: 16,
-                    background: '#dbeafe',
-                    borderRadius: 8,
-                    border: '2px solid #3b82f6',
-                    marginBottom: 16
+                <div style={{
+                  padding: 16,
+                  background: fechaProximaCena && !isFechaPassada(fechaProximaCena) ? '#dbeafe' : '#fee2e2',
+                  borderRadius: 8,
+                  border: fechaProximaCena && !isFechaPassada(fechaProximaCena) ? '2px solid #3b82f6' : '2px solid #ef4444',
+                  marginBottom: 16
+                }}>
+                  <div style={{ 
+                    fontSize: 14, 
+                    fontWeight: 700, 
+                    color: fechaProximaCena && !isFechaPassada(fechaProximaCena) ? '#1e40af' : '#991b1b', 
+                    marginBottom: 4 
                   }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', marginBottom: 4 }}>
-                      📅 Próxima cena:
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: '#1e3a8a' }}>
-                      {fechaProximaCena}
-                    </div>
+                    📅 FECHA PRÓXIMA CENA:
                   </div>
-                )}
+                  <div style={{ 
+                    fontSize: 16, 
+                    fontWeight: 600, 
+                    color: fechaProximaCena && !isFechaPassada(fechaProximaCena) ? '#1e3a8a' : '#7f1d1d' 
+                  }}>
+                    {fechaProximaCena && !isFechaPassada(fechaProximaCena) 
+                      ? formatearFecha(fechaProximaCena)
+                      : 'NO HAY FECHA ESTABLECIDA'}
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
@@ -922,6 +1012,89 @@ export default function Eventos({ user, profile }) {
           </div>
         )}
       </div>
+
+      {/* Modal para seleccionar fecha de cena */}
+      {showModalFecha && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#fff',
+            padding: 32,
+            borderRadius: 16,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            maxWidth: 400,
+            width: '90%'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: 20, fontSize: 20, fontWeight: 600 }}>
+              📅 Fecha de la próxima cena
+            </h3>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                Selecciona la fecha:
+              </label>
+              <input
+                type="date"
+                value={nuevaFechaCena}
+                onChange={(e) => setNuevaFechaCena(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: 15,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModalFecha(false);
+                  setNuevaFechaCena('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#fff',
+                  color: '#374151',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarBorradoConFecha}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#ef4444',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Confirmar y Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

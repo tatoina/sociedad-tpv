@@ -7,7 +7,8 @@ import {
   updateExpense, 
   deleteExpense,
   getUserFavorites,
-  toggleFavoriteProduct
+  toggleFavoriteProduct,
+  getAllSocios
 } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
@@ -51,6 +52,9 @@ export default function TPV({ user, profile }) {
   const [favorites, setFavorites] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [isForSociedad, setIsForSociedad] = useState(false);
+  const [socios, setSocios] = useState([]);
+  const [sociosAttendance, setSociosAttendance] = useState({});
   const nav = useNavigate();
 
   useEffect(() => {
@@ -95,6 +99,29 @@ export default function TPV({ user, profile }) {
     return () => { mounted = false; };
   }, [user]);
 
+  // Cargar socios cuando se activa el modo sociedad
+  useEffect(() => {
+    let mounted = true;
+    const loadSocios = async () => {
+      if (isForSociedad) {
+        try {
+          const allSocios = await getAllSocios();
+          if (mounted) {
+            setSocios(allSocios);
+            // Inicializar attendance a 0 para todos
+            const initialAttendance = {};
+            allSocios.forEach(s => { initialAttendance[s.id] = 0; });
+            setSociosAttendance(initialAttendance);
+          }
+        } catch (err) {
+          console.error("Error loading socios:", err);
+        }
+      }
+    };
+    loadSocios();
+    return () => { mounted = false; };
+  }, [isForSociedad]);
+
   if (!user) return <div>No autenticado</div>;
   if (profile?.isAdmin) return <div>Los administradores no pueden usar TPV. Usa "Listados" o "Productos".</div>;
 
@@ -137,39 +164,88 @@ export default function TPV({ user, profile }) {
   const handleSaveSale = async () => {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
     if (!user || !user.uid) { alert("No autenticado"); return; }
+    
+    // Si es para la sociedad, validar asistentes
+    if (isForSociedad) {
+      const totalAttendees = Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0);
+      if (totalAttendees === 0) {
+        alert("Debes indicar al menos 1 asistente");
+        return;
+      }
+    }
+    
     setLoadingSave(true);
 
     const groupedLines = groupedCart;
     const computedTotal = groupedLines.reduce((s, l) => s + (l.price * l.qty), 0);
 
-    const salePayload = {
-      uid: user.uid,
-      userEmail: user.email || "",
-      productLines: groupedLines,
-      item: groupedLines.map(l => `${l.qty}x ${l.label}`).join(", "),
-      category: "venta",
-      amount: computedTotal
-    };
-
     try {
-      const res = await addSale({
-        uid: salePayload.uid,
-        userEmail: salePayload.userEmail,
-        item: salePayload.item,
-        category: salePayload.category,
-        amount: salePayload.amount,
-        productLines: salePayload.productLines
-      });
-      // añadir al histórico local
-      const saved = {
-        id: res.id,
-        ...salePayload,
-        createdAtStr: new Date().toLocaleString(),
-        dateInput: toInputDateTime(new Date())
-      };
-      setHistory(prev => [saved, ...prev]);
-      alert("Venta guardada correctamente.");
+      if (isForSociedad) {
+        // Modo sociedad: repartir entre socios
+        const totalAttendees = Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0);
+        const amountPerAttendee = computedTotal / totalAttendees;
+        
+        const salesPromises = [];
+        
+        // Crear un gasto por cada socio que tenga asistentes
+        for (const [socioId, attendees] of Object.entries(sociosAttendance)) {
+          if (Number(attendees) > 0) {
+            const socio = socios.find(s => s.id === socioId);
+            const socioAmount = amountPerAttendee * Number(attendees);
+            
+            salesPromises.push(
+              addSale({
+                uid: socioId,
+                userEmail: socio?.email || "",
+                item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`,
+                category: "sociedad",
+                amount: socioAmount,
+                productLines: groupedLines
+              })
+            );
+          }
+        }
+        
+        await Promise.all(salesPromises);
+        alert(`Gasto repartido entre ${Object.values(sociosAttendance).filter(a => a > 0).length} socios\nTotal: ${computedTotal.toFixed(2)} €\nPor asistente: ${amountPerAttendee.toFixed(2)} €`);
+        
+      } else {
+        // Modo normal: guardar para el usuario actual
+        const salePayload = {
+          uid: user.uid,
+          userEmail: user.email || "",
+          productLines: groupedLines,
+          item: groupedLines.map(l => `${l.qty}x ${l.label}`).join(", "),
+          category: "venta",
+          amount: computedTotal
+        };
+        
+        await addSale({
+          uid: salePayload.uid,
+          userEmail: salePayload.userEmail,
+          item: salePayload.item,
+          category: salePayload.category,
+          amount: salePayload.amount,
+          productLines: salePayload.productLines
+        });
+        
+        alert("Venta registrada correctamente");
+      }
+      
+      // Limpiar carrito y recargar historial
       setCart([]);
+      setIsForSociedad(false);
+      setSociosAttendance({});
+      
+      // Recargar historial
+      const docs = await queryExpenses({ uid: user?.uid, isAdmin: false });
+      const items = docs.map(d => ({
+        ...d,
+        createdAtStr: d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : (d.createdAt || ""),
+        dateInput: toInputDateTime(d.date || d.createdAt)
+      }));
+      setHistory(items);
+      
     } catch (err) {
       console.error("addSale error full:", err);
       alert(`Error al guardar la venta: ${err.code || ""} — ${err.message || err}. Revisa la consola.`);
@@ -356,7 +432,7 @@ export default function TPV({ user, profile }) {
                 </button>
               </div>
             </div>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:16}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:12}}>
               {displayedProducts.map(p => {
                 const isFavorite = favorites.includes(p.id);
                 return (
@@ -364,65 +440,56 @@ export default function TPV({ user, profile }) {
                     key={p.id} 
                     className="card" 
                     style={{
-                      padding: '16px',
+                      padding: '12px',
                       position: 'relative',
-                      borderRadius: '20px',
+                      borderRadius: '12px',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       textAlign: 'center'
                     }}
                   >
-                    <button
-                      onClick={() => handleToggleFavorite(p.id)}
-                      style={{
-                        position: 'absolute',
-                        top: 12,
-                        right: 12,
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: 22,
-                        padding: 4,
-                        lineHeight: 1,
-                        zIndex: 2
-                      }}
-                      title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
-                    >
-                      {isFavorite ? "⭐" : "☆"}
-                    </button>
-
-                    <div style={{paddingTop: 8, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8}}>
-                      <div style={{fontWeight:600, fontSize:15, marginBottom:4}}>
-                        {p.label}
+                    <div style={{paddingTop: 4, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6}}>
+                      <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', justifyContent:'center', marginBottom:2}}>
+                        <span style={{fontWeight:600, fontSize:14}}>
+                          {p.label}
+                        </span>
+                        {p.category && (
+                          <span style={{fontSize:10, color:'#999', fontStyle:'italic'}}>
+                            {p.category}
+                          </span>
+                        )}
                       </div>
-                      <div style={{fontSize:12, color:'#666', marginBottom:4}}>
-                        {p.category || "Sin categoría"}
-                      </div>
-                      <div style={{fontSize:18, fontWeight:700, color:'#1976d2', marginBottom:8}}>
-                        {Number(p.price || 0).toFixed(2)} €
+                      <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:6}}>
+                        <div style={{fontSize:16, fontWeight:700, color:'#1976d2'}}>
+                          {Number(p.price || 0).toFixed(2)} €
+                        </div>
+                        <button
+                          onClick={() => handleToggleFavorite(p.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 18,
+                            padding: 2,
+                            lineHeight: 1
+                          }}
+                          title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+                        >
+                          {isFavorite ? "⭐" : "☆"}
+                        </button>
                       </div>
                       <button 
                         className="btn-primary full" 
                         style={{
                           marginTop: 0,
-                          fontSize: 15,
-                          padding: '14px 20px',
-                          borderRadius: '50px',
+                          fontSize: 13,
+                          padding: '8px 16px',
+                          borderRadius: '8px',
                           fontWeight: '600',
-                          minWidth: '120px',
-                          boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
-                          transition: 'all 0.2s ease'
+                          width: '100%'
                         }}
                         onClick={() => addToCart(p)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.3)';
-                        }}
                       >
                         Añadir
                       </button>
@@ -483,15 +550,33 @@ export default function TPV({ user, profile }) {
             <div style={{background:'#fafafa', padding:8, borderRadius:8}}>
               {cart.length === 0 ? <div className="muted">Carrito vacío</div> : (
                 cart.map((c, i) => (
-                  <div key={i} style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #eee'}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600}}>{c.label}</div>
-                      <div style={{fontSize:13, color:'#666'}}>Precio: {Number(c.price).toFixed(2)} €</div>
+                  <div key={i} style={{display:'flex', flexDirection:'column', padding:'8px 0', borderBottom:'1px solid #eee', gap:8}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{fontWeight:600, fontSize:14}}>{c.label}</div>
+                        <div style={{fontSize:12, color:'#666'}}>€{Number(c.price).toFixed(2)}</div>
+                      </div>
+                      <div style={{fontSize:16, fontWeight:700, color:'#1976d2', whiteSpace:'nowrap', marginLeft:8}}>
+                        €{(c.qty * c.price).toFixed(2)}
+                      </div>
                     </div>
-                    <div style={{display:'flex', alignItems:'center', gap:8}}>
-                      <input className="small-input" type="number" min="1" value={c.qty} onChange={(e) => updateCartLine(i, { qty: Number(e.target.value) || 1 })} />
-                      <div style={{minWidth:72, textAlign:'right', fontWeight:700}}>{(c.qty * c.price).toFixed(2)} €</div>
-                      <button className="btn-ghost" onClick={() => removeFromCart(i)}>Quitar</button>
+                    <div style={{display:'flex', alignItems:'center', gap:6}}>
+                      <input 
+                        className="small-input" 
+                        type="number" 
+                        min="1" 
+                        value={c.qty} 
+                        onChange={(e) => updateCartLine(i, { qty: Number(e.target.value) || 1 })}
+                        style={{width:60, padding:4, fontSize:14}}
+                      />
+                      <span style={{fontSize:12, color:'#666'}}>uds.</span>
+                      <button 
+                        className="btn-ghost" 
+                        onClick={() => removeFromCart(i)}
+                        style={{marginLeft:'auto', padding:'4px 12px', fontSize:12}}
+                      >
+                        Quitar
+                      </button>
                     </div>
                   </div>
                 ))
@@ -500,6 +585,53 @@ export default function TPV({ user, profile }) {
                 <div style={{fontWeight:700}}>Total:</div>
                 <div style={{fontSize:18, fontWeight:800}}>{total.toFixed(2)} €</div>
               </div>
+              
+              {/* Checkbox para gastos a nombre de la sociedad */}
+              <div style={{marginTop:12, padding:12, background:'#fff', borderRadius:8, border:'2px solid #ddd'}}>
+                <label style={{display:'flex', alignItems:'center', gap:8, cursor:'pointer'}}>
+                  <input 
+                    type="checkbox" 
+                    checked={isForSociedad}
+                    onChange={(e) => setIsForSociedad(e.target.checked)}
+                    style={{width:18, height:18, cursor:'pointer'}}
+                  />
+                  <span style={{fontWeight:700, color:'#dc2626', fontSize:14}}>
+                    A NOMBRE DE LA SOCIEDAD
+                  </span>
+                </label>
+              </div>
+              
+              {/* Lista de socios si está activado */}
+              {isForSociedad && (
+                <div style={{marginTop:12, padding:12, background:'#fef3c7', borderRadius:8, border:'2px solid #f59e0b'}}>
+                  <div style={{fontWeight:700, marginBottom:8, fontSize:14, color:'#92400e'}}>
+                    Indica los asistentes por socio:
+                  </div>
+                  <div style={{maxHeight:200, overflowY:'auto'}}>
+                    {socios.map(socio => (
+                      <div key={socio.id} style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+                        <div style={{flex:1, fontSize:13, fontWeight:600}}>
+                          {socio.name} {socio.surname}
+                        </div>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          value={sociosAttendance[socio.id] || 0}
+                          onChange={(e) => setSociosAttendance(prev => ({
+                            ...prev,
+                            [socio.id]: Math.max(0, Number(e.target.value) || 0)
+                          }))}
+                          style={{width:50, padding:4, fontSize:13, textAlign:'center'}}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{marginTop:8, fontSize:12, color:'#92400e', fontStyle:'italic'}}>
+                    Total asistentes: {Object.values(sociosAttendance).reduce((sum, num) => sum + Number(num), 0)}
+                  </div>
+                </div>
+              )}
+              
               <div style={{marginTop:10}}>
                 <button className="btn-primary full" onClick={handleSaveSale} disabled={loadingSave}>Total y Guardar</button>
               </div>

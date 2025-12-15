@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "eslint-plugin-react-hooks": "^7.0.1",
+    "firebase-admin": "^13.6.0",
     "workbox-build": "^7.3.0"
   },
   "browserslist": {
