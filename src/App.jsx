@@ -481,7 +481,7 @@ export default function App() {
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        nav('/listados-eventos');
+                        nav(profile?.isAdmin ? '/listados-tpv' : '/listados-eventos');
                       }}
                       style={{
                         width: '100%',
@@ -500,7 +500,7 @@ export default function App() {
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      📊 Listados Eventos
+                      {profile?.isAdmin ? '📊 Listados TPV' : '📊 Listados Eventos'}
                     </button>
                     <button
                       onClick={() => {
