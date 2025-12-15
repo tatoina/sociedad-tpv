@@ -683,9 +683,6 @@ export default function TPV({ user, profile }) {
                               <div style={{fontWeight:600, color: selectedSocios[socio.id] ? '#92400e' : '#374151'}}>
                                 {socio.name || socio.email} {socio.surname || ''}
                               </div>
-                              <div style={{fontSize:11, color:'#78716c', marginTop:2}}>
-                                {socio.email}
-                              </div>
                             </div>
                             {selectedSocios[socio.id] && (
                               <input 
