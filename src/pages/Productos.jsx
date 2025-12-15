@@ -99,12 +99,15 @@ export default function Productos({ profile }) {
         <div style={{overflowX:'auto'}}>
           <table className="table-responsive" style={{width:'100%', borderCollapse:'collapse'}}>
             <thead>
-              <tr>
-                <th style={{textAlign:'left', padding:8}}>Nombre</th>
-                <th style={{padding:8}}>Categoría</th>
-                <th style={{padding:8}}>Precio</th>
-                <th style={{padding:8}}>Activo</th>
-                <th style={{padding:8}}>Acciones</th>
+              <tr style={{
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                color: '#fff'
+              }}>
+                <th style={{textAlign:'left', padding:12, fontWeight:600}}>Nombre</th>
+                <th style={{padding:12, fontWeight:600}}>Categoría</th>
+                <th style={{padding:12, fontWeight:600}}>Precio</th>
+                <th style={{padding:12, fontWeight:600}}>Activo</th>
+                <th style={{padding:12, fontWeight:600}}>Acciones</th>
               </tr>
             </thead>
             <tbody>
