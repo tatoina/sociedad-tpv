@@ -251,7 +251,8 @@ export default function TPV({ user, profile }) {
       // Limpiar carrito y recargar historial
       setCart([]);
       setIsForSociedad(false);
-      setSociosAttendance({});
+      setSelectedSocios({});
+      setAttendeesCount({});
       
       // Recargar historial
       const docs = await queryExpenses({ uid: user?.uid, isAdmin: false });
