@@ -70,7 +70,16 @@ export default function Productos({ profile }) {
 
   return (
     <div style={{padding:12}}>
-      <h3 style={{marginBottom:12}}>Productos</h3>
+      <div style={{
+        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+        color: '#fff',
+        padding: '16px 20px',
+        borderRadius: '12px',
+        marginBottom: 20,
+        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
+      }}>
+        <h3 style={{margin:0, fontSize:24, fontWeight:700}}>Gestión de Productos</h3>
+      </div>
 
       <div style={{marginBottom:12}}>
         <h4 style={{marginBottom:8}}>Añadir producto</h4>
