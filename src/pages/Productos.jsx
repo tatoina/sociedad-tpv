@@ -12,6 +12,7 @@ export default function Productos({ profile }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("label");
   const [sortOrder, setSortOrder] = useState("asc");
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -105,6 +106,18 @@ export default function Productos({ profile }) {
       return 0;
     });
 
+  const existingCategories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+
+  const handleCategoryChange = (value) => {
+    if (value === "__NEW__") {
+      setShowNewCategory(true);
+      setNewRow(r => ({ ...r, category: "" }));
+    } else {
+      setShowNewCategory(false);
+      setNewRow(r => ({ ...r, category: value }));
+    }
+  };
+
   return (
     <div style={{padding:12}}>
       <div style={{
@@ -130,7 +143,42 @@ export default function Productos({ profile }) {
         </div>
         <div style={{display:'flex', flexDirection:'column', gap:8}}>
           <input className="full-input" placeholder="Nombre" value={newRow.label} onChange={(e) => setNewRow(r => ({ ...r, label: e.target.value }))} />
-          <input className="full-input" placeholder="Categoría" value={newRow.category} onChange={(e) => setNewRow(r => ({ ...r, category: e.target.value }))} />
+          
+          {showNewCategory ? (
+            <div style={{display:'flex', gap:8, alignItems:'center'}}>
+              <input 
+                className="full-input" 
+                placeholder="Nueva categoría" 
+                value={newRow.category} 
+                onChange={(e) => setNewRow(r => ({ ...r, category: e.target.value }))} 
+                autoFocus
+              />
+              <button 
+                className="btn-ghost" 
+                onClick={() => {
+                  setShowNewCategory(false);
+                  setNewRow(r => ({ ...r, category: "" }));
+                }}
+                style={{whiteSpace:'nowrap'}}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <select 
+              className="full-input" 
+              value={newRow.category} 
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              style={{padding:'8px', fontSize:14, border:'1px solid #ddd', borderRadius:4}}
+            >
+              <option value="">Seleccionar categoría...</option>
+              {existingCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value="__NEW__" style={{fontWeight:'bold', color:'#1976d2'}}>+ Nueva categoría...</option>
+            </select>
+          )}
+          
           <input className="full-input" placeholder="Precio" type="number" step="0.01" value={newRow.price} onChange={(e) => setNewRow(r => ({ ...r, price: e.target.value }))} />
           <label style={{display:'flex', alignItems:'center', gap:8}}>
             <input type="checkbox" checked={newRow.active} onChange={(e) => setNewRow(r => ({ ...r, active: e.target.checked }))} />
