@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { queryExpenses, getAllSocios, deleteExpense } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { storage } from '../firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function ListadosTPV({ user, profile }) {
   const [expenses, setExpenses] = useState([]);
@@ -286,7 +288,7 @@ export default function ListadosTPV({ user, profile }) {
     document.body.removeChild(link);
   };
 
-  const exportarMesAnteriorPorSocio = (esAutomatico = false) => {
+  const exportarMesAnteriorPorSocio = async (esAutomatico = false) => {
     // Calcular fechas del mes anterior
     const today = new Date();
     const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -370,27 +372,41 @@ export default function ListadosTPV({ user, profile }) {
       })
     ].join('\n');
 
-    // Crear blob y descargar
+    // Crear blob
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
     
     // Formato nombre: resumen_mesAnio.csv (ej: resumen_11-2024.csv)
     const monthName = firstDayLastMonth.toLocaleDateString('es-ES', { month: '2-digit', year: 'numeric' });
     const fileName = `resumen_${monthName.replace('/', '-')}.csv`;
     
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Guardar en historial
-    guardarEnHistorial(fileName, subtotales, esAutomatico);
-    
-    if (!esAutomatico) {
-      alert(`Excel del mes anterior descargado: ${fileName}`);
+    try {
+      // Subir a Firebase Storage
+      const fileRef = storageRef(storage, `resumen-mensual/${fileName}`);
+      await uploadBytes(fileRef, blob);
+      const downloadURL = await getDownloadURL(fileRef);
+      
+      // Descargar localmente también
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // Guardar en historial con URL de Firebase
+      guardarEnHistorial(fileName, subtotales, esAutomatico, downloadURL);
+      
+      if (!esAutomatico) {
+        alert(`Excel guardado y descargado: ${fileName}`);
+      }
+    } catch (error) {
+      console.error('Error al subir archivo a Firebase:', error);
+      if (!esAutomatico) {
+        alert('Error al guardar el archivo en la nube');
+      }
     }
   };
 
@@ -401,7 +417,7 @@ export default function ListadosTPV({ user, profile }) {
     }
   };
 
-  const guardarEnHistorial = (nombreArchivo, totales, esAutomatico) => {
+  const guardarEnHistorial = (nombreArchivo, totales, esAutomatico, downloadURL) => {
     const nuevaDescarga = {
       id: Date.now(),
       fecha: new Date().toLocaleString('es-ES'),
@@ -409,7 +425,8 @@ export default function ListadosTPV({ user, profile }) {
       gastoTPV: totales.gastoTPV,
       gastoSociedad: totales.gastoSociedad,
       total: totales.total,
-      tipo: esAutomatico ? 'Automático' : 'Manual'
+      tipo: esAutomatico ? 'Automático' : 'Manual',
+      url: downloadURL
     };
 
     const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
@@ -952,6 +969,9 @@ export default function ListadosTPV({ user, profile }) {
                       <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
                         Total
                       </th>
+                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -985,6 +1005,32 @@ export default function ListadosTPV({ user, profile }) {
                         <td style={{ padding: '12px 16px', fontSize: 15, color: '#059669', textAlign: 'right', fontWeight: 700 }}>
                           {descarga.total}€
                         </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          {descarga.url ? (
+                            <a
+                              href={descarga.url}
+                              download
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-block',
+                                padding: '6px 12px',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: '#fff',
+                                backgroundColor: '#10b981',
+                                border: 'none',
+                                borderRadius: 6,
+                                textDecoration: 'none',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📥 Descargar
+                            </a>
+                          ) : (
+                            <span style={{ fontSize: 12, color: '#9ca3af' }}>No disponible</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -997,9 +1043,10 @@ export default function ListadosTPV({ user, profile }) {
                 ℹ️ Información
               </div>
               <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.6 }}>
-                • Los archivos se descargan automáticamente el día 1 de cada mes<br/>
-                • También puedes descargar manualmente usando el botón "Resumen Mes Anterior"<br/>
-                • Los archivos se guardan en la carpeta de descargas de tu navegador<br/>
+                • Los archivos se generan automáticamente el día 1 de cada mes<br/>
+                • También puedes generar manualmente usando el botón "Resumen Mes Anterior"<br/>
+                • Los archivos se guardan en <strong>Firebase Storage</strong> (nube) y están accesibles para todos los administradores<br/>
+                • Puedes descargar cualquier archivo desde esta ventana haciendo clic en "Descargar"<br/>
                 • El historial muestra las últimas 50 descargas realizadas
               </div>
             </div>
