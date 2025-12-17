@@ -386,22 +386,11 @@ export default function ListadosTPV({ user, profile }) {
       await uploadBytes(fileRef, blob);
       const downloadURL = await getDownloadURL(fileRef);
       
-      // Descargar localmente también
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', fileName);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
       // Guardar en historial con URL de Firebase
       guardarEnHistorial(fileName, subtotales, esAutomatico, downloadURL);
       
       if (!esAutomatico) {
-        alert(`Excel guardado y descargado: ${fileName}`);
+        alert(`Excel guardado en la nube: ${fileName}\n\nPuedes descargarlo desde "Ver Historial"`);
       }
     } catch (error) {
       console.error('Error al subir archivo a Firebase:', error);
