@@ -1,45 +1,57 @@
 /**
- * SCRIPT PELIGROSO - BORRAR TODOS LOS GASTOS
+ * SCRIPT PELIGROSO - BORRAR TODOS LOS GASTOS (CON ADMIN SDK)
  * 
- * Este script elimina TODOS los documentos de la colección "gastos" en Firestore.
+ * Este script elimina TODOS los documentos de la colección "expenses" en Firestore.
  * Solo debe ejecutarse ANTES de pasar a producción para limpiar datos de prueba.
  * 
  * ADVERTENCIA: Esta acción NO se puede deshacer.
  * 
  * Para ejecutar:
- * node clear-gastos.js
+ * 1. Obtén el archivo serviceAccountKey.json de Firebase Console:
+ *    https://console.firebase.google.com/project/sociedad-tpv/settings/serviceaccounts/adminsdk
+ * 2. Colócalo en la raíz del proyecto
+ * 3. Ejecuta: node clear-gastos-admin.js
  */
 
-const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, deleteDoc, doc } = require('firebase/firestore');
+const admin = require('firebase-admin');
+const fs = require('fs');
 
-// Configuración de Firebase (debe coincidir con src/firebase.js)
-const firebaseConfig = {
-  apiKey: "AIzaSyAiinYBnD20OAIs9S_7wetabfQz477Duh4",
-  authDomain: "sociedad-tpv.firebaseapp.com",
-  projectId: "sociedad-tpv",
-  storageBucket: "sociedad-tpv.appspot.com",
-  messagingSenderId: "180644630865",
-  appId: "1:180644630865:web:a0a2d69c67c5b482c9c370"
-};
+// Intentar cargar el service account
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(fs.readFileSync('./serviceAccounkey.json', 'utf8'));
+} catch (error) {
+  console.error('❌ Error: No se encontró el archivo serviceAccounkey.json');
+  console.error('');
+  console.error('Para obtener este archivo:');
+  console.error('1. Ve a: https://console.firebase.google.com/project/sociedad-tpv/settings/serviceaccounts/adminsdk');
+  console.error('2. Haz clic en "Generar nueva clave privada"');
+  console.error('3. Guarda el archivo como serviceAccounkey.json en la raíz del proyecto');
+  console.error('');
+  process.exit(1);
+}
 
 async function clearAllGastos() {
   try {
     console.log('⚠️  ADVERTENCIA: Este script borrará TODOS los gastos de Firestore');
     console.log('⚠️  Esta acción NO se puede deshacer');
     console.log('');
-    console.log('Iniciando Firebase...');
+    console.log('Iniciando Firebase Admin SDK...');
     
-    // Inicializar Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Inicializar Firebase Admin
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: 'sociedad-tpv'
+    });
+    
+    const db = admin.firestore();
     
     console.log('Conectado a Firestore');
     console.log('');
     console.log('Obteniendo todos los gastos...');
     
     // Obtener todos los documentos de la colección "expenses"
-    const gastosSnapshot = await getDocs(collection(db, 'expenses'));
+    const gastosSnapshot = await db.collection('expenses').get();
     
     const totalGastos = gastosSnapshot.size;
     
@@ -57,7 +69,7 @@ async function clearAllGastos() {
     
     // Borrar documentos en lotes
     for (const gastoDocs of gastosSnapshot.docs) {
-      await deleteDoc(doc(db, 'expenses', gastoDocs.id));
+      await db.collection('expenses').doc(gastoDocs.id).delete();
       deleted++;
       
       // Mostrar progreso cada 10 documentos

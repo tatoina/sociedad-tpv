@@ -54,6 +54,7 @@ export default function TPV({ user, profile }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [showProducts, setShowProducts] = useState(true);
   const [isForSociedad, setIsForSociedad] = useState(false);
+  const [eventoTexto, setEventoTexto] = useState("");
   const [socios, setSocios] = useState([]);
   const [selectedSocios, setSelectedSocios] = useState({});
   const [attendeesCount, setAttendeesCount] = useState({});
@@ -209,15 +210,20 @@ export default function TPV({ user, profile }) {
           const attendees = Number(attendeesCount[socioId] || 1);
           const socioAmount = amountPerAttendee * attendees;
           
+          const itemDescription = eventoTexto.trim() 
+            ? `[SOCIEDAD - ${eventoTexto.trim()}] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`
+            : `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`;
+          
           salesPromises.push(
             addSale({
               uid: socioId,
               userEmail: socio?.email || "",
-              item: `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`,
+              item: itemDescription,
               category: "sociedad",
               amount: socioAmount,
               productLines: groupedLines,
-              attendees: attendees
+              attendees: attendees,
+              eventoTexto: eventoTexto.trim() || null
             })
           );
         }
@@ -251,6 +257,7 @@ export default function TPV({ user, profile }) {
       // Limpiar carrito y recargar historial
       setCart([]);
       setIsForSociedad(false);
+      setEventoTexto("");
       setSelectedSocios({});
       setAttendeesCount({});
       
@@ -464,7 +471,7 @@ export default function TPV({ user, profile }) {
                   }}
                 >
                   <span style={{fontSize:16}}>{showFavoritesOnly ? "⭐" : "📋"}</span>
-                  <span>{showFavoritesOnly ? "Favoritos" : "Todos"}</span>
+                  <span>{showFavoritesOnly ? "Favoritos" : "FAV"}</span>
                 </button>
               </div>
             </div>
@@ -639,6 +646,28 @@ export default function TPV({ user, profile }) {
                     A NOMBRE DE LA SOCIEDAD
                   </span>
                 </label>
+                
+                {/* Campo de texto para el evento */}
+                {isForSociedad && (
+                  <div style={{marginTop:10}}>
+                    <input 
+                      type="text" 
+                      value={eventoTexto}
+                      onChange={(e) => setEventoTexto(e.target.value)}
+                      placeholder="Describe el evento (ej: Cena de Navidad, Comida de hermandad...)"
+                      style={{
+                        width:'100%', 
+                        padding:'8px 12px', 
+                        fontSize:13,
+                        border:'2px solid #fbbf24',
+                        borderRadius:6,
+                        background:'#fef9e7',
+                        color:'#92400e',
+                        fontWeight:500
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               
               {/* Lista de socios si está activado */}

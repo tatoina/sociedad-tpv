@@ -10,6 +10,8 @@ export default function ListadosTPV({ user, profile }) {
   const [selectedSocio, setSelectedSocio] = useState('todos');
   const [showTickets, setShowTickets] = useState(false);
   const [searchTicket, setSearchTicket] = useState('');
+  const [showHistorial, setShowHistorial] = useState(false);
+  const [historialDescargas, setHistorialDescargas] = useState([]);
   
   // Inicializar con el mes anterior
   const getLastMonthDates = () => {
@@ -41,6 +43,7 @@ export default function ListadosTPV({ user, profile }) {
       loadExpenses();
       if (profile?.isAdmin) {
         loadSocios();
+        cargarHistorial();
       }
     }
   }, [user, profile]);
@@ -48,6 +51,32 @@ export default function ListadosTPV({ user, profile }) {
   useEffect(() => {
     filterExpenses();
   }, [expenses, dateFrom, dateTo, selectedSocio]);
+
+  // Descarga automática el día 1 de cada mes
+  useEffect(() => {
+    if (profile?.isAdmin && expenses.length > 0) {
+      const today = new Date();
+      const dayOfMonth = today.getDate();
+      
+      // Verificar si es día 1
+      if (dayOfMonth === 1) {
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        const key = `autoDownload_${currentYear}_${currentMonth}`;
+        
+        // Verificar si ya se descargó este mes
+        const yaDescargado = localStorage.getItem(key);
+        
+        if (!yaDescargado) {
+          // Esperar 2 segundos para asegurar que los datos estén cargados
+          setTimeout(() => {
+            exportarMesAnteriorPorSocio(true);
+            localStorage.setItem(key, 'true');
+          }, 2000);
+        }
+      }
+    }
+  }, [expenses, profile]);
 
   const loadSocios = async () => {
     try {
@@ -257,6 +286,144 @@ export default function ListadosTPV({ user, profile }) {
     document.body.removeChild(link);
   };
 
+  const exportarMesAnteriorPorSocio = (esAutomatico = false) => {
+    // Calcular fechas del mes anterior
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    
+    // Filtrar gastos del mes anterior
+    const expensesLastMonth = expenses.filter(exp => {
+      const expDate = exp.date?.toDate ? exp.date.toDate() : new Date(exp.date);
+      return expDate >= firstDayLastMonth && expDate <= lastDayLastMonth;
+    });
+
+    if (expensesLastMonth.length === 0) {
+      if (!esAutomatico) {
+        alert('No hay datos del mes anterior para exportar');
+      }
+      return;
+    }
+
+    // Agrupar por socio
+    const sociosData = {};
+
+    expensesLastMonth.forEach(exp => {
+      const socioId = exp.uid;
+      const socioEmail = exp.userEmail || 'Sin email';
+      
+      if (!sociosData[socioId]) {
+        sociosData[socioId] = {
+          email: socioEmail,
+          gastoTPV: 0,
+          gastoSociedad: 0,
+          total: 0
+        };
+      }
+
+      const lines = exp.productLines || [];
+      let expAmount = 0;
+      lines.forEach(line => {
+        const qty = Number(line.qty || 1);
+        const price = Number(line.price || 0);
+        expAmount += qty * price;
+      });
+
+      if (exp.category === 'sociedad') {
+        sociosData[socioId].gastoSociedad += expAmount;
+      } else {
+        sociosData[socioId].gastoTPV += expAmount;
+      }
+      
+      sociosData[socioId].total += expAmount;
+    });
+
+    // Convertir a array y ordenar por total descendente
+    const sociosArray = Object.entries(sociosData).map(([id, data]) => ({
+      nombre: data.email,
+      gastoTPV: data.gastoTPV.toFixed(2),
+      gastoSociedad: data.gastoSociedad.toFixed(2),
+      total: data.total.toFixed(2)
+    })).sort((a, b) => parseFloat(b.total) - parseFloat(a.total));
+
+    // Calcular subtotales
+    const subtotales = {
+      nombre: 'SUBTOTALES',
+      gastoTPV: sociosArray.reduce((sum, s) => sum + parseFloat(s.gastoTPV), 0).toFixed(2),
+      gastoSociedad: sociosArray.reduce((sum, s) => sum + parseFloat(s.gastoSociedad), 0).toFixed(2),
+      total: sociosArray.reduce((sum, s) => sum + parseFloat(s.total), 0).toFixed(2)
+    };
+
+    // Crear CSV con datos agrupados
+    const excelData = [
+      ...sociosArray,
+      {}, // Línea en blanco
+      subtotales
+    ];
+
+    const headers = ['Nombre Socio', 'Gasto TPV', 'Gasto Sociedad', 'Total'];
+    const csvContent = [
+      headers.join(','),
+      ...excelData.map(row => {
+        if (!row.nombre) return ''; // Línea en blanco
+        return `"${row.nombre}",${row.gastoTPV},${row.gastoSociedad},${row.total}`;
+      })
+    ].join('\n');
+
+    // Crear blob y descargar
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    // Formato nombre: resumen_mesAnio.csv (ej: resumen_11-2024.csv)
+    const monthName = firstDayLastMonth.toLocaleDateString('es-ES', { month: '2-digit', year: 'numeric' });
+    const fileName = `resumen_${monthName.replace('/', '-')}.csv`;
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Guardar en historial
+    guardarEnHistorial(fileName, subtotales, esAutomatico);
+    
+    if (!esAutomatico) {
+      alert(`Excel del mes anterior descargado: ${fileName}`);
+    }
+  };
+
+  const cargarHistorial = () => {
+    const historial = localStorage.getItem('historialDescargas');
+    if (historial) {
+      setHistorialDescargas(JSON.parse(historial));
+    }
+  };
+
+  const guardarEnHistorial = (nombreArchivo, totales, esAutomatico) => {
+    const nuevaDescarga = {
+      id: Date.now(),
+      fecha: new Date().toLocaleString('es-ES'),
+      archivo: nombreArchivo,
+      gastoTPV: totales.gastoTPV,
+      gastoSociedad: totales.gastoSociedad,
+      total: totales.total,
+      tipo: esAutomatico ? 'Automático' : 'Manual'
+    };
+
+    const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
+    historial.unshift(nuevaDescarga); // Añadir al principio
+    
+    // Mantener solo los últimos 50 registros
+    if (historial.length > 50) {
+      historial.pop();
+    }
+    
+    localStorage.setItem('historialDescargas', JSON.stringify(historial));
+    setHistorialDescargas(historial);
+  };
+
   const formatDate = (date) => {
     if (!date) return '';
     const d = date.toDate ? date.toDate() : new Date(date);
@@ -299,23 +466,65 @@ export default function ListadosTPV({ user, profile }) {
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#374151' }}>
             Filtros
           </h3>
-          <button
-            onClick={exportToExcel}
-            disabled={filteredExpenses.length === 0}
-            style={{
-              padding: '10px 20px',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              backgroundColor: filteredExpenses.length === 0 ? '#9ca3af' : '#10b981',
-              border: 'none',
-              borderRadius: 8,
-              cursor: filteredExpenses.length === 0 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            📥 Exportar a Excel
-          </button>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {profile?.isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowHistorial(true)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: '#8b5cf6',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#7c3aed'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#8b5cf6'}
+                >
+                  📂 Ver Historial
+                </button>
+                <button
+                  onClick={() => exportarMesAnteriorPorSocio(false)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: '#3b82f6',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                >
+                  📊 Resumen Mes Anterior
+                </button>
+              </>
+            )}
+            <button
+              onClick={exportToExcel}
+              disabled={filteredExpenses.length === 0}
+              style={{
+                padding: '10px 20px',
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#fff',
+                backgroundColor: filteredExpenses.length === 0 ? '#9ca3af' : '#10b981',
+                border: 'none',
+                borderRadius: 8,
+                cursor: filteredExpenses.length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              📥 Exportar a Excel
+            </button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: '1 1 200px' }}>
@@ -670,6 +879,133 @@ export default function ListadosTPV({ user, profile }) {
         </div>
       )}
       </div>
+
+      {/* Modal Historial de Descargas */}
+      {showHistorial && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            padding: 32,
+            maxWidth: 900,
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#111827' }}>
+                📂 Historial de Descargas
+              </h2>
+              <button
+                onClick={() => setShowHistorial(false)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#6b7280',
+                  backgroundColor: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            {historialDescargas.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+                No hay descargas registradas aún
+              </div>
+            ) : (
+              <div style={{ overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Fecha Descarga
+                      </th>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Archivo
+                      </th>
+                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Tipo
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        TPV
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Sociedad
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historialDescargas.map((descarga) => (
+                      <tr key={descarga.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#6b7280' }}>
+                          {descarga.fecha}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#111827', fontWeight: 500 }}>
+                          {descarga.archivo}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 12px',
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            backgroundColor: descarga.tipo === 'Automático' ? '#dbeafe' : '#f3e8ff',
+                            color: descarga.tipo === 'Automático' ? '#1e40af' : '#6b21a8'
+                          }}>
+                            {descarga.tipo}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#8b5cf6', textAlign: 'right', fontWeight: 500 }}>
+                          {descarga.gastoTPV}€
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#f59e0b', textAlign: 'right', fontWeight: 500 }}>
+                          {descarga.gastoSociedad}€
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 15, color: '#059669', textAlign: 'right', fontWeight: 700 }}>
+                          {descarga.total}€
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, padding: 16, backgroundColor: '#f0f9ff', borderRadius: 12, border: '1px solid #bfdbfe' }}>
+              <div style={{ fontSize: 14, color: '#1e40af', marginBottom: 8, fontWeight: 600 }}>
+                ℹ️ Información
+              </div>
+              <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.6 }}>
+                • Los archivos se descargan automáticamente el día 1 de cada mes<br/>
+                • También puedes descargar manualmente usando el botón "Resumen Mes Anterior"<br/>
+                • Los archivos se guardan en la carpeta de descargas de tu navegador<br/>
+                • El historial muestra las últimas 50 descargas realizadas
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
