@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { queryExpenses, getAllSocios, deleteExpense } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../firebase';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 
 export default function ListadosTPV({ user, profile }) {
   const [expenses, setExpenses] = useState([]);
@@ -436,6 +436,72 @@ export default function ListadosTPV({ user, profile }) {
     // Sin límite de registros - guardar todos
     localStorage.setItem('historialDescargas', JSON.stringify(historial));
     setHistorialDescargas(historial);
+  };
+
+  const eliminarArchivo = async (descarga) => {
+    if (!window.confirm(`¿Estás seguro de eliminar el archivo "${descarga.archivo}"?`)) {
+      return;
+    }
+
+    try {
+      // Eliminar de Firebase Storage si existe URL
+      if (descarga.url) {
+        const match = descarga.archivo.match(/(\d{4})/);
+        const year = match ? match[1] : '';
+        if (year) {
+          const fileRef = storageRef(storage, `resumen-mensual/${year}/${descarga.archivo}`);
+          await deleteObject(fileRef);
+        }
+      }
+
+      // Eliminar del historial local
+      const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
+      const nuevoHistorial = historial.filter(h => h.id !== descarga.id);
+      localStorage.setItem('historialDescargas', JSON.stringify(nuevoHistorial));
+      setHistorialDescargas(nuevoHistorial);
+
+      alert('Archivo eliminado correctamente');
+    } catch (error) {
+      console.error('Error al eliminar archivo:', error);
+      alert('Error al eliminar el archivo. Puede que ya no exista en el servidor.');
+      
+      // Eliminar del historial local de todas formas
+      const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
+      const nuevoHistorial = historial.filter(h => h.id !== descarga.id);
+      localStorage.setItem('historialDescargas', JSON.stringify(nuevoHistorial));
+      setHistorialDescargas(nuevoHistorial);
+    }
+  };
+
+  const eliminarCarpetaAnio = async (anio) => {
+    if (!window.confirm(`¿Estás seguro de eliminar TODOS los archivos del año ${anio}?\n\nEsta acción NO se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      // Listar todos los archivos del año en Firebase Storage
+      const folderRef = storageRef(storage, `resumen-mensual/${anio}`);
+      const listResult = await listAll(folderRef);
+
+      // Eliminar todos los archivos
+      const deletePromises = listResult.items.map(itemRef => deleteObject(itemRef));
+      await Promise.all(deletePromises);
+
+      // Eliminar del historial local todos los archivos de ese año
+      const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
+      const nuevoHistorial = historial.filter(h => {
+        const match = h.archivo.match(/(\d{4})/);
+        const fileYear = match ? match[1] : '';
+        return fileYear !== anio;
+      });
+      localStorage.setItem('historialDescargas', JSON.stringify(nuevoHistorial));
+      setHistorialDescargas(nuevoHistorial);
+
+      alert(`Todos los archivos del año ${anio} han sido eliminados`);
+    } catch (error) {
+      console.error('Error al eliminar carpeta:', error);
+      alert('Error al eliminar la carpeta. Algunos archivos pueden no haberse eliminado.');
+    }
   };
 
   const formatDate = (date) => {
@@ -961,18 +1027,47 @@ export default function ListadosTPV({ user, profile }) {
                   
                   return aniosOrdenados.map(anio => (
                     <div key={anio} style={{ marginBottom: 32 }}>
-                      <h3 style={{ 
-                        margin: '0 0 16px 0', 
-                        fontSize: 18, 
-                        fontWeight: 700, 
-                        color: '#374151',
-                        padding: '8px 16px',
-                        backgroundColor: '#f9fafb',
-                        borderRadius: 8,
-                        borderLeft: '4px solid #3b82f6'
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: 16
                       }}>
-                        📅 Año {anio}
-                      </h3>
+                        <h3 style={{ 
+                          margin: 0, 
+                          fontSize: 18, 
+                          fontWeight: 700, 
+                          color: '#374151',
+                          padding: '8px 16px',
+                          backgroundColor: '#f9fafb',
+                          borderRadius: 8,
+                          borderLeft: '4px solid #3b82f6',
+                          flex: 1
+                        }}>
+                          📅 Año {anio}
+                        </h3>
+                        {anio !== 'Sin año' && (
+                          <button
+                            onClick={() => eliminarCarpetaAnio(anio)}
+                            style={{
+                              padding: '8px 16px',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#fff',
+                              backgroundColor: '#dc2626',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              marginLeft: 12,
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#dc2626'}
+                          >
+                            🗑️ Eliminar año completo
+                          </button>
+                        )}
+                      </div>
                       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
@@ -1031,30 +1126,50 @@ export default function ListadosTPV({ user, profile }) {
                                 {descarga.total}€
                               </td>
                               <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                {descarga.url ? (
-                                  <a
-                                    href={descarga.url}
-                                    download
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                  {descarga.url ? (
+                                    <a
+                                      href={descarga.url}
+                                      download
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '6px 12px',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: '#fff',
+                                        backgroundColor: '#10b981',
+                                        border: 'none',
+                                        borderRadius: 6,
+                                        textDecoration: 'none',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      📥
+                                    </a>
+                                  ) : (
+                                    <span style={{ fontSize: 12, color: '#9ca3af' }}>-</span>
+                                  )}
+                                  <button
+                                    onClick={() => eliminarArchivo(descarga)}
                                     style={{
-                                      display: 'inline-block',
                                       padding: '6px 12px',
                                       fontSize: 13,
                                       fontWeight: 600,
                                       color: '#fff',
-                                      backgroundColor: '#10b981',
+                                      backgroundColor: '#ef4444',
                                       border: 'none',
                                       borderRadius: 6,
-                                      textDecoration: 'none',
-                                      cursor: 'pointer'
+                                      cursor: 'pointer',
+                                      transition: 'background-color 0.2s'
                                     }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
                                   >
-                                    📥 Descargar
-                                  </a>
-                                ) : (
-                                  <span style={{ fontSize: 12, color: '#9ca3af' }}>No disponible</span>
-                                )}
+                                    🗑️
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
