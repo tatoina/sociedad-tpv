@@ -380,8 +380,9 @@ export default function ListadosTPV({ user, profile }) {
     const fileName = `resumen_${monthName.replace('/', '-')}.csv`;
     
     try {
-      // Subir a Firebase Storage
-      const fileRef = storageRef(storage, `resumen-mensual/${fileName}`);
+      // Subir a Firebase Storage con estructura por año
+      const year = firstDayLastMonth.getFullYear();
+      const fileRef = storageRef(storage, `resumen-mensual/${year}/${fileName}`);
       await uploadBytes(fileRef, blob);
       const downloadURL = await getDownloadURL(fileRef);
       
@@ -432,11 +433,7 @@ export default function ListadosTPV({ user, profile }) {
     const historial = JSON.parse(localStorage.getItem('historialDescargas') || '[]');
     historial.unshift(nuevaDescarga); // Añadir al principio
     
-    // Mantener solo los últimos 50 registros
-    if (historial.length > 50) {
-      historial.pop();
-    }
-    
+    // Sin límite de registros - guardar todos
     localStorage.setItem('historialDescargas', JSON.stringify(historial));
     setHistorialDescargas(historial);
   };
@@ -948,93 +945,124 @@ export default function ListadosTPV({ user, profile }) {
               </div>
             ) : (
               <div style={{ overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
-                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Fecha Descarga
-                      </th>
-                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Archivo
-                      </th>
-                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Tipo
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        TPV
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Sociedad
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Total
-                      </th>
-                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historialDescargas.map((descarga) => (
-                      <tr key={descarga.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#6b7280' }}>
-                          {descarga.fecha}
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#111827', fontWeight: 500 }}>
-                          {descarga.archivo}
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '4px 12px',
-                            borderRadius: 12,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            backgroundColor: descarga.tipo === 'Automático' ? '#dbeafe' : '#f3e8ff',
-                            color: descarga.tipo === 'Automático' ? '#1e40af' : '#6b21a8'
-                          }}>
-                            {descarga.tipo}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#8b5cf6', textAlign: 'right', fontWeight: 500 }}>
-                          {descarga.gastoTPV}€
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 14, color: '#f59e0b', textAlign: 'right', fontWeight: 500 }}>
-                          {descarga.gastoSociedad}€
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 15, color: '#059669', textAlign: 'right', fontWeight: 700 }}>
-                          {descarga.total}€
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          {descarga.url ? (
-                            <a
-                              href={descarga.url}
-                              download
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-block',
-                                padding: '6px 12px',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: '#fff',
-                                backgroundColor: '#10b981',
-                                border: 'none',
-                                borderRadius: 6,
-                                textDecoration: 'none',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              📥 Descargar
-                            </a>
-                          ) : (
-                            <span style={{ fontSize: 12, color: '#9ca3af' }}>No disponible</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* Agrupar por año */}
+                {(() => {
+                  const porAnio = {};
+                  historialDescargas.forEach(descarga => {
+                    // Extraer año del nombre del archivo (resumen_MM-YYYY.csv)
+                    const match = descarga.archivo.match(/(\d{4})/);
+                    const anio = match ? match[1] : 'Sin año';
+                    if (!porAnio[anio]) porAnio[anio] = [];
+                    porAnio[anio].push(descarga);
+                  });
+                  
+                  // Ordenar años descendente
+                  const aniosOrdenados = Object.keys(porAnio).sort((a, b) => b - a);
+                  
+                  return aniosOrdenados.map(anio => (
+                    <div key={anio} style={{ marginBottom: 32 }}>
+                      <h3 style={{ 
+                        margin: '0 0 16px 0', 
+                        fontSize: 18, 
+                        fontWeight: 700, 
+                        color: '#374151',
+                        padding: '8px 16px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: 8,
+                        borderLeft: '4px solid #3b82f6'
+                      }}>
+                        📅 Año {anio}
+                      </h3>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Fecha Descarga
+                            </th>
+                            <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Archivo
+                            </th>
+                            <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Tipo
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              TPV
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Sociedad
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Total
+                            </th>
+                            <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                              Acciones
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {porAnio[anio].map((descarga) => (
+                            <tr key={descarga.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '12px 16px', fontSize: 13, color: '#6b7280' }}>
+                                {descarga.fecha}
+                              </td>
+                              <td style={{ padding: '12px 16px', fontSize: 14, color: '#111827', fontWeight: 500 }}>
+                                {descarga.archivo}
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '4px 12px',
+                                  borderRadius: 12,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  backgroundColor: descarga.tipo === 'Automático' ? '#dbeafe' : '#f3e8ff',
+                                  color: descarga.tipo === 'Automático' ? '#1e40af' : '#6b21a8'
+                                }}>
+                                  {descarga.tipo}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 16px', fontSize: 14, color: '#8b5cf6', textAlign: 'right', fontWeight: 500 }}>
+                                {descarga.gastoTPV}€
+                              </td>
+                              <td style={{ padding: '12px 16px', fontSize: 14, color: '#f59e0b', textAlign: 'right', fontWeight: 500 }}>
+                                {descarga.gastoSociedad}€
+                              </td>
+                              <td style={{ padding: '12px 16px', fontSize: 15, color: '#059669', textAlign: 'right', fontWeight: 700 }}>
+                                {descarga.total}€
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                {descarga.url ? (
+                                  <a
+                                    href={descarga.url}
+                                    download
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '6px 12px',
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                      color: '#fff',
+                                      backgroundColor: '#10b981',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      textDecoration: 'none',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    📥 Descargar
+                                  </a>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: '#9ca3af' }}>No disponible</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ));
+                })()}
               </div>
             )}
 
@@ -1045,9 +1073,9 @@ export default function ListadosTPV({ user, profile }) {
               <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.6 }}>
                 • Los archivos se generan automáticamente el día 1 de cada mes<br/>
                 • También puedes generar manualmente usando el botón "Resumen Mes Anterior"<br/>
-                • Los archivos se guardan en <strong>Firebase Storage</strong> (nube) y están accesibles para todos los administradores<br/>
+                • Los archivos se guardan en <strong>Firebase Storage</strong> organizados por año (ej: /2025/resumen_01-2025.csv)<br/>
                 • Puedes descargar cualquier archivo desde esta ventana haciendo clic en "Descargar"<br/>
-                • El historial muestra las últimas 50 descargas realizadas
+                • El historial guarda TODOS los registros sin límite de tiempo
               </div>
             </div>
           </div>
