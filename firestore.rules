@@ -47,5 +47,11 @@ service cloud.firestore {
       allow read, list: if request.auth != null;
       allow create, update, delete: if request.auth != null;
     }
+
+    // Historial Resumenes: all authenticated users can read, only admin can write
+    match /historial-resumenes/{docId} {
+      allow read, list: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

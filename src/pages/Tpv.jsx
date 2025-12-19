@@ -200,35 +200,49 @@ export default function TPV({ user, profile }) {
           return sum + Number(attendeesCount[socioId] || 1);
         }, 0);
         
+        console.log('🎯 CREANDO GASTO DE SOCIEDAD:');
+        console.log('   Total del gasto:', computedTotal);
+        console.log('   Socios seleccionados:', selectedSociosList.length);
+        console.log('   Total de asistentes:', totalAttendees);
+        
         const amountPerAttendee = computedTotal / totalAttendees;
+        console.log('   Precio por asistente:', amountPerAttendee.toFixed(2));
         
-        const salesPromises = [];
-        
-        // Crear un gasto por cada socio seleccionado
-        for (const socioId of selectedSociosList) {
+        // Construir array de participantes
+        const participantes = selectedSociosList.map(socioId => {
           const socio = socios.find(s => s.id === socioId);
           const attendees = Number(attendeesCount[socioId] || 1);
           const socioAmount = amountPerAttendee * attendees;
-          
-          const itemDescription = eventoTexto.trim() 
-            ? `[SOCIEDAD - ${eventoTexto.trim()}] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`
-            : `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${attendees} asistente${attendees > 1 ? 's' : ''})`;
-          
-          salesPromises.push(
-            addSale({
-              uid: socioId,
-              userEmail: socio?.email || "",
-              item: itemDescription,
-              category: "sociedad",
-              amount: socioAmount,
-              productLines: groupedLines,
-              attendees: attendees,
-              eventoTexto: eventoTexto.trim() || null
-            })
-          );
-        }
+          console.log(`   → ${socio?.email}: ${attendees} asist. = ${socioAmount.toFixed(2)}€`);
+          return {
+            uid: socioId,
+            email: socio?.email || '',
+            nombre: socio?.nombre || socio?.email?.split('@')[0] || 'Socio',
+            attendees: attendees,
+            amount: socioAmount
+          };
+        });
         
-        await Promise.all(salesPromises);
+        const itemDescription = eventoTexto.trim() 
+          ? `[SOCIEDAD - ${eventoTexto.trim()}] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} asistente${totalAttendees > 1 ? 's' : ''})`
+          : `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} asistente${totalAttendees > 1 ? 's' : ''})`;
+        
+        // Crear UN solo ticket con todos los participantes
+        await addSale({
+          uid: user.uid, // Creador del ticket
+          userEmail: user.email || "",
+          item: itemDescription,
+          category: "sociedad",
+          amount: computedTotal,
+          productLines: groupedLines,
+          participantes: participantes,
+          eventoTexto: eventoTexto.trim() || null,
+          totalGeneral: computedTotal,
+          amountPerAttendee: amountPerAttendee,
+          totalAttendees: totalAttendees
+        });
+        
+        console.log('✅ Ticket único creado con', participantes.length, 'participantes');
         alert(`Gasto repartido entre ${selectedSociosList.length} socios (${totalAttendees} asistentes)\nTotal: ${computedTotal.toFixed(2)} €\nPor asistente: ${amountPerAttendee.toFixed(2)} €`);
         
       } else {
@@ -775,28 +789,41 @@ export default function TPV({ user, profile }) {
           </div>
           {showHistory && (history.length === 0 ? <div>No hay ventas registradas.</div> : (
             <div style={{overflowX:'auto'}}>
-              <table className="table-responsive" style={{width:'100%', borderCollapse:'collapse'}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize: 14}}>
                 <thead>
-                  <tr>
-                    <th style={{textAlign:'left', padding:8}}>Fecha</th>
-                    <th style={{textAlign:'left', padding:8}}>Productos</th>
-                    <th style={{textAlign:'center', padding:8}}>Tipo</th>
-                    <th style={{textAlign:'right', padding:8}}>Total</th>
-                    <th style={{padding:8}}>Acciones</th>
+                  <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                      Fecha / Hora
+                    </th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                      Productos
+                    </th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                      Tipo
+                    </th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                      Total
+                    </th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map(h => (
-                    <tr key={h.id} style={{borderTop:'1px solid #eee', verticalAlign:'top'}}>
-                      <td style={{padding:8, minWidth:140}}>
+                  {history.map((h, index) => (
+                    <tr key={h.id} style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
                         {editingTicketId === h.id ? (
-                          <input type="datetime-local" value={editingData.dateInput} onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))} />
+                          <input type="datetime-local" value={editingData.dateInput} onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))} style={{ fontSize: 13 }} />
                         ) : (
-                          h.createdAtStr
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{h.createdAtStr?.split(',')[0] || ''}</div>
+                            <div style={{ fontSize: 12, color: '#6b7280' }}>{h.createdAtStr?.split(',')[1]?.trim() || ''}</div>
+                          </div>
                         )}
                       </td>
 
-                      <td style={{padding:8, maxWidth:420}}>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>
                         {editingTicketId === h.id ? (
                           <div>
                             <button className="btn-small" onClick={addLineToEditing}>+ Línea</button>
@@ -822,63 +849,65 @@ export default function TPV({ user, profile }) {
                         ) : (
                           <div>
                             {groupProductLines(h.productLines || []).map((pl, i) => (
-                              <div key={i}>{pl.qty} x {pl.label} — {Number(pl.price || 0).toFixed(2)} €</div>
+                              <div key={i} style={{ marginBottom: 4 }}>
+                                <span style={{ fontWeight: 500, color: '#6b7280' }}>{pl.qty}×</span> {pl.label}
+                                <span style={{ color: '#6b7280', marginLeft: 8 }}>
+                                  ({Number(pl.price || 0).toFixed(2)}€)
+                                </span>
+                              </div>
                             ))}
                           </div>
                         )}
                       </td>
 
-                      <td style={{padding:8, textAlign:'center'}}>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {h.category === 'sociedad' ? (
-                          <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:4}}>
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: 12,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              backgroundColor: '#fff3cd',
-                              color: '#856404',
-                              border: '1px solid #ffc107'
-                            }}>
-                              🏛️ SOCIEDAD
-                            </span>
-                            {h.attendees && (
-                              <span style={{fontSize: 11, color: '#666'}}>
-                                {h.attendees} asist.
-                              </span>
-                            )}
-                          </div>
-                        ) : (
                           <span style={{
+                            display: 'inline-block',
                             padding: '4px 8px',
                             borderRadius: 12,
                             fontSize: 11,
-                            backgroundColor: '#e3f2fd',
-                            color: '#1565c0'
+                            fontWeight: 600,
+                            backgroundColor: '#fff3cd',
+                            color: '#856404',
+                            border: '1px solid #ffc107',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            🏛️ Sociedad
+                            {h.attendees && <div style={{ fontSize: 10 }}>({h.attendees} asist.)</div>}
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            backgroundColor: '#e0e7ff',
+                            color: '#3730a3',
+                            whiteSpace: 'nowrap'
                           }}>
                             Personal
                           </span>
                         )}
                       </td>
 
-                      <td style={{padding:8, textAlign:'right'}}>{Number(h.amount || 0).toFixed(2)} €</td>
+                      <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {Number(h.amount || 0).toFixed(2)}€
+                      </td>
 
-                      <td style={{padding:8}}>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {editingTicketId === h.id ? (
                           <div style={{display:'flex', flexDirection:'column', gap:8}}>
                             <button className="btn-primary" onClick={saveEdit}>Guardar</button>
                             <button className="btn-ghost" onClick={cancelEdit}>Cancelar</button>
                           </div>
                         ) : (
-                          <div style={{display:'flex', flexDirection:'column', gap:8}}>
-                            {/* Solo mostrar Editar si NO es sociedad o si el usuario es admin */}
-                            {(h.category !== 'sociedad' || profile?.isAdmin) && (
-                              <button className="btn-small" onClick={() => startEditTicket(h)}>Editar</button>
-                            )}
-                            {/* Solo admin puede borrar tickets de sociedad */}
-                            {(h.category !== 'sociedad' || profile?.isAdmin) && (
-                              <button className="btn-ghost" onClick={() => deleteTicket(h.id)}>Borrar</button>
-                            )}
+                          <div style={{display:'flex', gap:8, justifyContent:'center'}}>
+                            {/* Usuario puede editar sus propios tickets (incluso de sociedad) */}
+                            <button className="btn-small" onClick={() => startEditTicket(h)}>✏️</button>
+                            {/* Usuario puede borrar sus propios tickets (incluso de sociedad) */}
+                            <button className="btn-ghost" onClick={() => deleteTicket(h.id)}>🗑️</button>
                           </div>
                         )}
                       </td>

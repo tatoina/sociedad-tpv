@@ -14,7 +14,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-const APP_VERSION = "1.0.0";
+export const APP_VERSION = "2.0.8";
 
 // Función para limpiar caché
 const clearAppCache = async () => {
@@ -481,7 +481,7 @@ export default function App() {
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        nav(profile?.isAdmin ? '/listados-tpv' : '/listados-eventos');
+                        nav('/listados-tpv');
                       }}
                       style={{
                         width: '100%',
@@ -500,7 +500,7 @@ export default function App() {
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      {profile?.isAdmin ? '📊 Listados TPV' : '📊 Listados Eventos'}
+                      {profile?.isAdmin ? '📊 Listados TPV' : '📊 Mis Gastos'}
                     </button>
                     <button
                       onClick={() => {
@@ -632,6 +632,19 @@ export default function App() {
             <span style={{ color: theme.text }}>No autenticado</span>
           )}
         </div>
+        
+        {/* Versión de la aplicación */}
+        {user && (
+          <div style={{
+            fontSize: '11px',
+            color: theme.text,
+            opacity: 0.5,
+            fontWeight: 500,
+            marginRight: '12px'
+          }}>
+            v{APP_VERSION}
+          </div>
+        )}
         
         {/* Botón ESTILO - tres puntos de colores */}
         {user && (

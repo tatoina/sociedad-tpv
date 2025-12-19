@@ -1,6 +1,7 @@
 // src/pages/Menu.jsx
 import React from "react";
 import { Link } from "react-router-dom";
+import { APP_VERSION } from "../App";
 
 export default function Menu({ user, profile }) {
   const MenuItem = ({ to, icon, label, isAdmin = false }) => (
@@ -77,6 +78,17 @@ export default function Menu({ user, profile }) {
         {profile?.isAdmin && <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />}
+      </div>
+      
+      <div style={{
+        marginTop: 'auto',
+        paddingTop: 40,
+        paddingBottom: 20,
+        fontSize: 11,
+        color: '#9ca3af',
+        textAlign: 'center'
+      }}>
+        v{APP_VERSION}
       </div>
     </div>
   );

@@ -5,5 +5,10 @@ service firebase.storage {
     match /user-photos/{userId}/{fileName} {
       allow read, write: if request.auth != null;
     }
+    
+    // Resumen mensual: todos los autenticados pueden leer y escribir (TEMPORAL)
+    match /resumen-mensual/{year}/{fileName} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

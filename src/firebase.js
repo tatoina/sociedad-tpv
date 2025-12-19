@@ -38,7 +38,7 @@ const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyAiinYBnD20OAIs9S_7wetabfQz477Duh4",
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "sociedad-tpv.firebaseapp.com",
   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "sociedad-tpv",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "sociedad-tpv.appspot.com",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "sociedad-tpv.firebasestorage.app",
   messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "180644630865",
   appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:180644630865:web:a0a2d69c67c5b482c9c370"
 };
@@ -295,17 +295,43 @@ export async function queryExpenses({ uid, isAdmin = false, startDate = null, en
   try {
     const expensesCol = collection(db, "expenses");
     const constraints = [];
-    if (!isAdmin && uid) constraints.push(where("uid", "==", uid));
+    // Siempre traer todos si no es admin, luego filtraremos localmente para incluir participantes
     if (startDate) constraints.push(where("date", ">=", startDate));
     if (endDate) constraints.push(where("date", "<=", endDate));
     const q = constraints.length ? query(expensesCol, ...constraints, orderBy("date", "desc")) : query(expensesCol, orderBy("date", "desc"));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Si no es admin, filtrar tickets propios o donde el usuario esté en participantes
+    if (!isAdmin && uid) {
+      items = items.filter(exp => {
+        // Ticket propio (uid directo)
+        if (exp.uid === uid) return true;
+        // Ticket de sociedad donde el usuario está en participantes
+        if (exp.participantes && Array.isArray(exp.participantes)) {
+          return exp.participantes.some(p => p.uid === uid);
+        }
+        return false;
+      });
+    }
+    
+    return items;
   } catch (err) {
     console.error("queryExpenses error:", err);
     const snapAll = await getDocs(collection(db, "expenses"));
     let items = snapAll.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (!isAdmin && uid) items = items.filter(i => i.uid === uid);
+    
+    // Mismo filtro en el catch
+    if (!isAdmin && uid) {
+      items = items.filter(exp => {
+        if (exp.uid === uid) return true;
+        if (exp.participantes && Array.isArray(exp.participantes)) {
+          return exp.participantes.some(p => p.uid === uid);
+        }
+        return false;
+      });
+    }
+    
     if (startDate) items = items.filter(i => {
       const di = i.date && i.date.toDate ? i.date.toDate() : new Date(i.date || 0);
       return di >= startDate;
@@ -342,7 +368,7 @@ export async function getAllSocios() {
   }
 }
 
-export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null, attendees = null } = {}) {
+export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null, attendees = null, eventoTexto = null, totalGeneral = null, amountPerAttendee = null, totalAttendees = null, participantes = null } = {}) {
   if (!uid) throw new Error("UID requerido para addSale");
   const payload = {
     uid,
@@ -354,6 +380,11 @@ export async function addSale({ uid, userEmail, item, category, amount, date = n
     productId: productId || null,
     productLines: productLines || null,
     attendees: attendees || null,
+    eventoTexto: eventoTexto || null,
+    totalGeneral: totalGeneral || null,
+    amountPerAttendee: amountPerAttendee || null,
+    totalAttendees: totalAttendees || null,
+    participantes: participantes || null, // Array de {uid, email, nombre, attendees, amount}
     date: date ? date : serverTimestamp(),
     createdAt: serverTimestamp()
   };
@@ -371,6 +402,12 @@ export async function updateExpense(expenseId, data) {
   if (data.category !== undefined) allowed.category = data.category;
   if (data.date !== undefined) allowed.date = data.date; // Date or Timestamp expected
   if (data.productLines !== undefined) allowed.productLines = data.productLines; // si guardas detalle por líneas
+  if (data.attendees !== undefined) allowed.attendees = data.attendees;
+  if (data.eventoTexto !== undefined) allowed.eventoTexto = data.eventoTexto;
+  if (data.totalGeneral !== undefined) allowed.totalGeneral = data.totalGeneral;
+  if (data.amountPerAttendee !== undefined) allowed.amountPerAttendee = data.amountPerAttendee;
+  if (data.totalAttendees !== undefined) allowed.totalAttendees = data.totalAttendees;
+  if (data.participantes !== undefined) allowed.participantes = data.participantes;
   allowed.updatedAt = serverTimestamp();
   await updateDoc(ref, allowed);
   return true;
