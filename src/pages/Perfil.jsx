@@ -7,9 +7,9 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
-    lastName: "",
+    surname: "",
     phone: "",
-    birthDate: ""
+    dob: ""
   });
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -20,9 +20,9 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     if (profile) {
       setFormData({
         name: profile.name || "",
-        lastName: profile.lastName || "",
+        surname: profile.surname || "",
         phone: profile.phone || "",
-        birthDate: profile.birthDate || ""
+        dob: profile.dob || ""
       });
     }
   }, [profile]);
@@ -38,7 +38,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     e.preventDefault();
     
     // Validar que todos los campos estén completos
-    if (!formData.name || !formData.lastName || !formData.phone || !formData.birthDate) {
+    if (!formData.name || !formData.surname || !formData.phone || !formData.dob) {
       alert("Todos los campos son obligatorios. Por favor, completa tu perfil.");
       return;
     }
@@ -64,9 +64,9 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     // Restaurar valores originales
     setFormData({
       name: profile?.name || "",
-      lastName: profile?.lastName || "",
+      surname: profile?.surname || "",
       phone: profile?.phone || "",
-      birthDate: profile?.birthDate || ""
+      dob: profile?.dob || ""
     });
     setEditing(false);
   };
@@ -123,7 +123,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
   };
 
   // Verificar si el perfil está incompleto
-  const isIncomplete = !profile?.name || !profile?.lastName || !profile?.phone || !profile?.birthDate;
+  const isIncomplete = !profile?.name || !profile?.surname || !profile?.phone || !profile?.dob;
 
   return (
     <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
@@ -194,6 +194,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
                 <input 
                   type="file" 
                   accept="image/*"
+                  capture="user"
                   onChange={handlePhotoChange}
                   disabled={uploadingPhoto}
                   style={{ display: 'none' }}
@@ -233,8 +234,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Apellido</div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>{profile?.lastName || "Sin apellido"}</div>
+            <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Apellidos</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{profile?.surname || "Sin apellidos"}</div>
           </div>
 
           <div style={{ marginBottom: 20 }}>
@@ -245,7 +246,7 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Fecha de nacimiento</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>
-              {profile?.birthDate ? new Date(profile.birthDate).toLocaleDateString() : "Sin fecha"}
+              {profile?.dob ? new Date(profile.dob).toLocaleDateString() : "Sin fecha"}
             </div>
           </div>
 
@@ -301,16 +302,16 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
-              Apellido *
+              Apellidos *
             </label>
             <input
               type="text"
-              name="lastName"
-              value={formData.lastName}
+              name="surname"
+              value={formData.surname}
               onChange={handleChange}
               required
               className="full-input"
-              placeholder="Introduce tu apellido"
+              placeholder="Introduce tus apellidos"
             />
           </div>
 
@@ -335,8 +336,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
             </label>
             <input
               type="date"
-              name="birthDate"
-              value={formData.birthDate}
+              name="dob"
+              value={formData.dob}
               onChange={handleChange}
               required
               className="full-input"

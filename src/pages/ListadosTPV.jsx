@@ -1406,11 +1406,9 @@ export default function ListadosTPV({ user, profile }) {
                       <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                         Total
                       </th>
-                      {profile?.isAdmin && (
-                        <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                          Acciones
-                        </th>
-                      )}
+                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1521,9 +1519,10 @@ export default function ListadosTPV({ user, profile }) {
                             <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
                               {profile?.isAdmin ? total.toFixed(2) : myPart.toFixed(2)}€
                             </td>
-                            {profile?.isAdmin && (
-                              <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                {/* Mostrar botón editar si es admin o si el ticket es del usuario */}
+                                {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
                                   <button
                                     onClick={() => {
                                       if (editingTicketId === exp.id) {
@@ -1549,6 +1548,9 @@ export default function ListadosTPV({ user, profile }) {
                                   >
                                     {editingTicketId === exp.id ? '✖️' : '✏️'}
                                   </button>
+                                )}
+                                {/* Botón eliminar solo para admin */}
+                                {profile?.isAdmin && (
                                   <button
                                     onClick={() => handleDeleteTicket(exp.id)}
                                     style={{
@@ -1568,15 +1570,15 @@ export default function ListadosTPV({ user, profile }) {
                                   >
                                     🗑️
                                   </button>
-                                </div>
-                              </td>
-                            )}
+                                )}
+                              </div>
+                            </td>
                           </tr>
                           
                           {/* Fila expandida con detalles */}
                           {isExpanded && (
                             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
-                              <td colSpan={profile?.isAdmin ? 7 : 5} style={{ padding: '20px 16px' }}>
+                              <td colSpan={profile?.isAdmin ? 7 : 6} style={{ padding: '20px 16px' }}>
                                 {editingTicketId === exp.id ? (
                                   /* Vista de edición */
                                   <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, border: '2px solid #3b82f6', maxWidth: '100%', overflow: 'hidden' }}>

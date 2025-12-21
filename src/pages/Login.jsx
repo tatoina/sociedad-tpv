@@ -111,7 +111,12 @@ export default function Login() {
           <>
             <input className="full-input" name="name" value={form.name} onChange={onChange} placeholder="Nombre" required />
             <input className="full-input" name="surname" value={form.surname} onChange={onChange} placeholder="Apellidos" required />
-            <input className="full-input" name="dob" value={form.dob} onChange={onChange} type="date" placeholder="Fecha de nacimiento" required />
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, display: "block", color: "#333" }}>
+                Fecha de nacimiento
+              </label>
+              <input className="full-input" name="dob" value={form.dob} onChange={onChange} type="date" required />
+            </div>
             <input className="full-input" name="phone" value={form.phone} onChange={onChange} placeholder="Teléfono" required />
             
             {/* Foto */}
@@ -137,6 +142,7 @@ export default function Login() {
               <input
                 type="file"
                 accept="image/*"
+                capture="user"
                 onChange={handlePhotoChange}
                 className="full-input"
                 style={{ padding: '6px' }}
