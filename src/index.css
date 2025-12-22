@@ -149,3 +149,14 @@ input:focus, select:focus, textarea:focus {
   .card { padding:10px; }
   .table-responsive th, .table-responsive td { font-size:13px; padding:6px; }
 }
+
+/* TPV History responsive */
+@media (max-width: 768px) {
+  .tpv-history-table { display: none !important; }
+  .tpv-history-mobile { display: block !important; }
+}
+
+@media (min-width: 769px) {
+  .tpv-history-table { display: block !important; }
+  .tpv-history-mobile { display: none !important; }
+}

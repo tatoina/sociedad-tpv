@@ -60,6 +60,7 @@ export default function TPV({ user, profile }) {
   const [socios, setSocios] = useState([]);
   const [selectedSocios, setSelectedSocios] = useState({});
   const [attendeesCount, setAttendeesCount] = useState({});
+  const [expandedTickets, setExpandedTickets] = useState({});
   const nav = useNavigate();
 
   useEffect(() => {
@@ -872,7 +873,8 @@ export default function TPV({ user, profile }) {
             </button>
           </div>
           {showHistory && (history.length === 0 ? <div>No hay ventas registradas.</div> : (
-            <div style={{overflowX:'auto'}}>
+            <>
+            <div className="tpv-history-table" style={{overflowX:'auto'}}>
               <table style={{width:'100%', borderCollapse:'collapse', fontSize: 14}}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
@@ -1291,6 +1293,498 @@ export default function TPV({ user, profile }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Vista móvil */}
+            <div className="tpv-history-mobile">
+              {history.map((h) => {
+                const lines = groupProductLines(h.productLines || []);
+                const isEditing = editingTicketId === h.id;
+                const isExpanded = expandedTickets[h.id] || isEditing;
+                
+                return (
+                  <React.Fragment key={h.id}>
+                    {/* Card principal del ticket - colapsable */}
+                    <div 
+                      onClick={() => {
+                        if (!isEditing) {
+                          setExpandedTickets(prev => ({
+                            ...prev,
+                            [h.id]: !prev[h.id]
+                          }));
+                        }
+                      }}
+                      style={{
+                        background: '#fff',
+                        border: isEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                        borderRadius: 10,
+                        padding: 12,
+                        marginBottom: 10,
+                        boxShadow: isEditing ? '0 4px 12px rgba(59,130,246,0.2)' : '0 1px 3px rgba(0,0,0,0.08)',
+                        cursor: isEditing ? 'default' : 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {/* Encabezado siempre visible */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isExpanded ? 8 : 0 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 2 }}>
+                            {h.createdAtStr?.split(',')[0] || ''}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                            {h.createdAtStr?.split(',')[1]?.trim() || ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#059669' }}>
+                            {Number(h.amount || 0).toFixed(2)}€
+                          </div>
+                          {!isEditing && (
+                            <div style={{ 
+                              fontSize: 18, 
+                              color: '#9ca3af',
+                              transition: 'transform 0.2s ease',
+                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                            }}>
+                              ▼
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Contenido expandible */}
+                      {isExpanded && (
+                        <>
+                          <div style={{ marginBottom: 8 }}>
+                            {lines.map((pl, i) => (
+                              <div key={i} style={{ fontSize: 11, color: '#374151', marginBottom: 2 }}>
+                                <span style={{ fontWeight: 600 }}>{pl.qty}×</span> {pl.label} 
+                                <span style={{ color: '#6b7280' }}> ({Number(pl.price || 0).toFixed(2)}€)</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            {h.category === 'sociedad' ? (
+                              <span style={{
+                                padding: '2px 6px',
+                                borderRadius: 6,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                backgroundColor: '#fff3cd',
+                                color: '#856404'
+                              }}>
+                                🏛️ Sociedad
+                              </span>
+                            ) : (
+                              <span style={{
+                                padding: '2px 6px',
+                                borderRadius: 6,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                backgroundColor: '#e0e7ff',
+                                color: '#3730a3'
+                              }}>
+                                Personal
+                              </span>
+                            )}
+                          </div>
+
+                          {!isEditing && (
+                            <div 
+                              style={{ display: 'flex', gap: 6 }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button className="btn-small" onClick={() => startEditTicket(h)} style={{ flex: 1, fontSize: 11 }}>
+                                ✏️ Editar
+                              </button>
+                              <button className="btn-ghost" onClick={() => deleteTicket(h.id)} style={{ flex: 1, fontSize: 11 }}>
+                                🗑️ Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Interfaz de edición móvil */}
+                    {isEditing && (
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '2px solid #3b82f6',
+                        borderRadius: 10,
+                        padding: 16,
+                        marginTop: -10,
+                        marginBottom: 16
+                      }}>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                          ✏️ Editando ticket
+                        </h4>
+
+                        {/* Fecha y hora */}
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Fecha y hora
+                          </label>
+                          <input 
+                            type="datetime-local" 
+                            value={editingData.dateInput}
+                            onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))}
+                            className="full-input"
+                            style={{ fontSize: 14 }}
+                          />
+                        </div>
+
+                        {/* Tipo de gasto */}
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Tipo de gasto
+                          </label>
+                          <select
+                            value={editingData.category}
+                            onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
+                            className="full-input"
+                            style={{ fontSize: 14 }}
+                          >
+                            <option value="venta">Personal</option>
+                            <option value="sociedad">Sociedad</option>
+                          </select>
+                        </div>
+
+                        {/* Evento (solo si es sociedad) */}
+                        {editingData.category === 'sociedad' && (
+                          <>
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                                Evento
+                              </label>
+                              <input 
+                                type="text"
+                                value={editingData.eventoTexto || ''}
+                                onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
+                                className="full-input"
+                                placeholder="Nombre del evento"
+                                style={{ fontSize: 14 }}
+                              />
+                            </div>
+
+                            {/* Selección de socios */}
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+                                Participantes
+                              </label>
+                              <div style={{ 
+                                maxHeight: 200, 
+                                overflowY: 'auto',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 8,
+                                padding: 8,
+                                background: '#fff'
+                              }}>
+                                {socios.map(socio => (
+                                  <div key={socio.id} style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 8, 
+                                    marginBottom: 8,
+                                    padding: 6,
+                                    background: editingData.selectedSocios[socio.id] ? '#eff6ff' : 'transparent',
+                                    borderRadius: 6
+                                  }}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={editingData.selectedSocios[socio.id] || false}
+                                      onChange={(e) => {
+                                        setEditingData(d => ({
+                                          ...d,
+                                          selectedSocios: {
+                                            ...d.selectedSocios,
+                                            [socio.id]: e.target.checked
+                                          }
+                                        }));
+                                      }}
+                                      style={{ width: 16, height: 16 }}
+                                    />
+                                    <label style={{ 
+                                      flex: 1, 
+                                      fontSize: 12, 
+                                      color: '#374151',
+                                      fontWeight: editingData.selectedSocios[socio.id] ? 500 : 400
+                                    }}>
+                                      {socio.nombre || socio.email}
+                                    </label>
+                                    {editingData.selectedSocios[socio.id] && (
+                                      <input 
+                                        type="number"
+                                        min="1"
+                                        value={editingData.attendeesCount[socio.id] || 1}
+                                        onChange={(e) => {
+                                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                                          setEditingData(d => ({
+                                            ...d,
+                                            attendeesCount: {
+                                              ...d.attendeesCount,
+                                              [socio.id]: val
+                                            }
+                                          }));
+                                        }}
+                                        style={{ 
+                                          width: 50, 
+                                          padding: 4, 
+                                          fontSize: 12,
+                                          border: '1px solid #d1d5db',
+                                          borderRadius: 4,
+                                          textAlign: 'center'
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Añadir productos */}
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+                            Añadir productos
+                          </label>
+                          
+                          {/* Selector de categoría */}
+                          <div style={{ marginBottom: 8 }}>
+                            <select
+                              value={selectedCategoryEdit}
+                              onChange={(e) => {
+                                setSelectedCategoryEdit(e.target.value);
+                                setSelectedProductEdit('');
+                              }}
+                              className="full-input"
+                              style={{ fontSize: 13 }}
+                            >
+                              <option value="">Seleccionar categoría...</option>
+                              {(() => {
+                                const categoriesSet = new Set();
+                                products.forEach(p => {
+                                  const cat = p.category || 'Sin categoría';
+                                  categoriesSet.add(cat);
+                                });
+                                return Array.from(categoriesSet)
+                                  .sort((a, b) => a.localeCompare(b))
+                                  .map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                  ));
+                              })()}
+                            </select>
+                          </div>
+
+                          {/* Selector de producto */}
+                          <div style={{ marginBottom: 8 }}>
+                            <select
+                              value={selectedProductEdit}
+                              onChange={(e) => setSelectedProductEdit(e.target.value)}
+                              disabled={!selectedCategoryEdit}
+                              className="full-input"
+                              style={{ 
+                                fontSize: 13,
+                                backgroundColor: !selectedCategoryEdit ? '#f3f4f6' : '#fff',
+                                cursor: !selectedCategoryEdit ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              <option value="">Seleccionar producto...</option>
+                              {selectedCategoryEdit && products
+                                .filter(p => (p.category || 'Sin categoría') === selectedCategoryEdit)
+                                .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
+                                .map(p => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.label || 'Sin nombre'} - {Number(p.price || 0).toFixed(2)}€
+                                  </option>
+                                ))
+                              }
+                            </select>
+                          </div>
+
+                          {/* Botones añadir */}
+                          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                            <button
+                              onClick={() => {
+                                if (selectedProductEdit) {
+                                  const prod = products.find(p => p.id === selectedProductEdit);
+                                  if (prod) {
+                                    const newLines = [...(editingData.productLines || []), {
+                                      label: prod.label,
+                                      price: Number(prod.price || 0),
+                                      qty: 1,
+                                      productId: prod.id
+                                    }];
+                                    setEditingData({ ...editingData, productLines: newLines });
+                                    setSelectedProductEdit('');
+                                  }
+                                }
+                              }}
+                              disabled={!selectedProductEdit}
+                              style={{
+                                flex: 1,
+                                padding: 10,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: '#fff',
+                                backgroundColor: !selectedProductEdit ? '#9ca3af' : '#10b981',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: !selectedProductEdit ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              ✅ Añadir producto
+                            </button>
+                            <button
+                              onClick={addLineToEditing}
+                              style={{
+                                flex: 1,
+                                padding: 10,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: '#fff',
+                                backgroundColor: '#6366f1',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✏️ Manual
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Líneas de productos */}
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+                            Productos en el ticket
+                          </label>
+                          {(editingData.productLines || []).map((line, idx) => (
+                            <div key={idx} style={{ 
+                              display: 'flex', 
+                              gap: 6, 
+                              marginBottom: 8,
+                              alignItems: 'center',
+                              background: '#fff',
+                              padding: 8,
+                              borderRadius: 6,
+                              border: '1px solid #e5e7eb'
+                            }}>
+                              <input 
+                                type="text"
+                                value={line.label || ''}
+                                onChange={(e) => updateLineEditing(idx, { label: e.target.value })}
+                                placeholder="Producto"
+                                style={{ 
+                                  flex: 2,
+                                  padding: 6,
+                                  fontSize: 12,
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4
+                                }}
+                              />
+                              <input 
+                                type="number"
+                                value={line.qty || 1}
+                                onChange={(e) => updateLineEditing(idx, { qty: parseInt(e.target.value) || 1 })}
+                                min="1"
+                                style={{ 
+                                  width: 40,
+                                  padding: 6,
+                                  fontSize: 12,
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4,
+                                  textAlign: 'center'
+                                }}
+                              />
+                              <input 
+                                type="number"
+                                value={line.price || 0}
+                                onChange={(e) => updateLineEditing(idx, { price: parseFloat(e.target.value) || 0 })}
+                                step="0.01"
+                                style={{ 
+                                  width: 60,
+                                  padding: 6,
+                                  fontSize: 12,
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4
+                                }}
+                              />
+                              <button 
+                                onClick={() => removeLineFromEditing(idx)}
+                                style={{
+                                  padding: 4,
+                                  fontSize: 14,
+                                  background: '#fee',
+                                  border: '1px solid #fcc',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                  width: 30,
+                                  height: 30
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {/* Total */}
+                          <div style={{ 
+                            marginTop: 12, 
+                            paddingTop: 12, 
+                            borderTop: '2px solid #e5e7eb', 
+                            fontSize: 15, 
+                            fontWeight: 700, 
+                            color: '#059669', 
+                            textAlign: 'right' 
+                          }}>
+                            Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
+                          </div>
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                          <button
+                            onClick={cancelEdit}
+                            style={{
+                              flex: 1,
+                              padding: 10,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#374151',
+                              backgroundColor: '#f3f4f6',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={saveEdit}
+                            style={{
+                              flex: 1,
+                              padding: 10,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#fff',
+                              backgroundColor: '#3b82f6',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💾 Guardar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            </>
           ))}
         </div>
       </div>

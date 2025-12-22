@@ -41,6 +41,11 @@ function registerValidSW(swUrl, config) {
   navigator.serviceWorker
     .register(swUrl)
     .then(registration => {
+      // Verificar actualizaciones cada 30 segundos
+      setInterval(() => {
+        registration.update();
+      }, 30000);
+
       registration.onupdatefound = () => {
         const installingWorker = registration.installing;
         if (installingWorker == null) return;
@@ -53,11 +58,11 @@ function registerValidSW(swUrl, config) {
                 config.onUpdate(registration);
               }
               // Forzar actualización del service worker
-              registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
-              // Recargar la página después de un momento
-              setTimeout(() => {
-                window.location.reload();
-              }, 1000);
+              if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              // Recargar la página inmediatamente
+              window.location.reload();
             } else {
               // Contenido en caché para uso offline
               console.log('Contenido cacheado para uso offline.');

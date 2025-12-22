@@ -150,8 +150,6 @@ export default function ListadosTPV({ user, profile }) {
     newExpanded.add(ticket.id);
     setExpandedTickets(newExpanded);
     
-    // Establecer modo edición
-    setEditingTicketId(ticket.id);
     const expDate = ticket.date?.toDate ? ticket.date.toDate() : new Date(ticket.date);
     const dateInput = expDate.toISOString().slice(0, 16);
     
@@ -176,7 +174,8 @@ export default function ListadosTPV({ user, profile }) {
       }
     }
     
-    setEditingData({
+    // Establecer datos de edición y luego el ID (para evitar condición de carrera)
+    const newEditingData = {
       productLines: (ticket.productLines || []).map(pl => ({ ...pl })),
       dateInput: dateInput,
       category: ticket.category || 'venta',
@@ -185,7 +184,10 @@ export default function ListadosTPV({ user, profile }) {
       selectedSocios: selectedSociosMap,
       attendeesCount: attendeesMap,
       originalUid: ticket.uid
-    });
+    };
+    
+    setEditingData(newEditingData);
+    setEditingTicketId(ticket.id);
   };
 
   const cancelEdit = () => {
@@ -1382,7 +1384,8 @@ export default function ListadosTPV({ user, profile }) {
                 No hay tickets para mostrar
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <>
+              <div className="tpv-history-table" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
@@ -1520,53 +1523,29 @@ export default function ListadosTPV({ user, profile }) {
                               {profile?.isAdmin ? total.toFixed(2) : myPart.toFixed(2)}€
                             </td>
                             <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                              <div style={{display:'flex', gap:8, justifyContent:'center'}}>
                                 {/* Mostrar botón editar si es admin o si el ticket es del usuario */}
                                 {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
-                                  <button
+                                  <button 
+                                    className="btn-small" 
                                     onClick={() => {
+                                      console.log('BOTÓN EDITAR CLICKEADO - Versión 2.1.2');
                                       if (editingTicketId === exp.id) {
                                         cancelEdit();
                                       } else {
                                         startEditTicket(exp);
                                       }
                                     }}
-                                    style={{
-                                      padding: '6px 12px',
-                                      fontSize: 13,
-                                      fontWeight: 600,
-                                      color: '#fff',
-                                      backgroundColor: editingTicketId === exp.id ? '#ef4444' : '#3b82f6',
-                                      border: 'none',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      transition: 'background-color 0.2s',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    onMouseEnter={(e) => e.target.style.backgroundColor = editingTicketId === exp.id ? '#dc2626' : '#2563eb'}
-                                    onMouseLeave={(e) => e.target.style.backgroundColor = editingTicketId === exp.id ? '#ef4444' : '#3b82f6'}
+                                    style={{ minWidth: '40px' }}
                                   >
                                     {editingTicketId === exp.id ? '✖️' : '✏️'}
                                   </button>
                                 )}
                                 {/* Botón eliminar solo para admin */}
                                 {profile?.isAdmin && (
-                                  <button
+                                  <button 
+                                    className="btn-ghost" 
                                     onClick={() => handleDeleteTicket(exp.id)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      fontSize: 13,
-                                      fontWeight: 600,
-                                      color: '#fff',
-                                      backgroundColor: '#ef4444',
-                                      border: 'none',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      transition: 'background-color 0.2s',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
-                                    onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
                                   >
                                     🗑️
                                   </button>
@@ -1579,7 +1558,7 @@ export default function ListadosTPV({ user, profile }) {
                           {isExpanded && (
                             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
                               <td colSpan={profile?.isAdmin ? 7 : 6} style={{ padding: '20px 16px' }}>
-                                {editingTicketId === exp.id ? (
+                                {editingTicketId === exp.id && editingData ? (
                                   /* Vista de edición */
                                   <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, border: '2px solid #3b82f6', maxWidth: '100%', overflow: 'hidden' }}>
                                     <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
@@ -1594,14 +1573,7 @@ export default function ListadosTPV({ user, profile }) {
                                         type="datetime-local" 
                                         value={editingData.dateInput}
                                         onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))}
-                                        style={{
-                                          width: '100%',
-                                          padding: '8px 12px',
-                                          fontSize: 14,
-                                          border: '1px solid #d1d5db',
-                                          borderRadius: 6,
-                                          boxSizing: 'border-box'
-                                        }}
+                                        className="full-input"
                                       />
                                     </div>
 
@@ -1612,14 +1584,7 @@ export default function ListadosTPV({ user, profile }) {
                                       <select
                                         value={editingData.category}
                                         onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
-                                        style={{
-                                          width: '100%',
-                                          padding: '8px 12px',
-                                          fontSize: 14,
-                                          border: '1px solid #d1d5db',
-                                          borderRadius: 6,
-                                          boxSizing: 'border-box'
-                                        }}
+                                        className="full-input"
                                       >
                                         <option value="venta">Personal</option>
                                         <option value="sociedad">Sociedad</option>
@@ -1630,26 +1595,6 @@ export default function ListadosTPV({ user, profile }) {
                                       <>
                                         <div style={{ marginBottom: 16 }}>
                                           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                                            Asistentes
-                                          </label>
-                                          <input 
-                                            type="number" 
-                                            min="0"
-                                            value={editingData.attendees}
-                                            onChange={(e) => setEditingData(d => ({ ...d, attendees: Number(e.target.value) || 0 }))}
-                                            style={{
-                                              width: '100%',
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              boxSizing: 'border-box'
-                                            }}
-                                          />
-                                        </div>
-
-                                        <div style={{ marginBottom: 16 }}>
-                                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
                                             Evento (opcional)
                                           </label>
                                           <input 
@@ -1657,14 +1602,7 @@ export default function ListadosTPV({ user, profile }) {
                                             placeholder="Nombre del evento"
                                             value={editingData.eventoTexto}
                                             onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
-                                            style={{
-                                              width: '100%',
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              boxSizing: 'border-box'
-                                            }}
+                                            className="full-input"
                                           />
                                         </div>
 
@@ -1730,8 +1668,7 @@ export default function ListadosTPV({ user, profile }) {
                                                         padding: '4px 8px',
                                                         fontSize: 13,
                                                         border: '1px solid #d1d5db',
-                                                        borderRadius: 4,
-                                                        boxSizing: 'border-box'
+                                                        borderRadius: 4
                                                       }}
                                                     />
                                                   </div>
@@ -1860,51 +1797,33 @@ export default function ListadosTPV({ user, profile }) {
                                         </label>
                                       </div>
                                       {(editingData.productLines || []).map((pl, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                                        <div key={idx} style={{display:'flex', gap:8, alignItems:'center', marginBottom:8}}>
                                           <input 
+                                            className="small-input" 
                                             placeholder="Producto" 
-                                            value={pl.label}
-                                            onChange={(e) => updateLineEditing(idx, { label: e.target.value })}
-                                            style={{
-                                              flex: 1,
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              boxSizing: 'border-box'
-                                            }}
+                                            value={pl.label} 
+                                            onChange={(e) => updateLineEditing(idx, { label: e.target.value })} 
+                                            style={{ flex: 1 }}
                                           />
                                           <input 
+                                            className="small-input" 
                                             type="number" 
                                             step="0.01" 
                                             placeholder="Precio"
-                                            value={pl.price}
-                                            onChange={(e) => updateLineEditing(idx, { price: e.target.value === '' ? '' : Number(e.target.value) })}
-                                            style={{
-                                              width: 100,
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              boxSizing: 'border-box'
-                                            }}
+                                            value={pl.price} 
+                                            onChange={(e) => updateLineEditing(idx, { price: Number(e.target.value) || 0 })} 
+                                            style={{width:100}}
                                           />
                                           <input 
+                                            className="small-input" 
                                             type="number" 
                                             placeholder="Cant."
-                                            value={pl.qty}
-                                            min="1"
-                                            onChange={(e) => updateLineEditing(idx, { qty: Number(e.target.value) || 1 })}
-                                            style={{
-                                              width: 70,
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              boxSizing: 'border-box'
-                                            }}
+                                            value={pl.qty} 
+                                            min="1" 
+                                            onChange={(e) => updateLineEditing(idx, { qty: Number(e.target.value) || 1 })} 
+                                            style={{width:70}}
                                           />
-                                          <button
+                                          <button 
                                             onClick={() => removeLineFromEditing(idx)}
                                             style={{
                                               padding: '8px 12px',
@@ -1921,6 +1840,9 @@ export default function ListadosTPV({ user, profile }) {
                                           </button>
                                         </div>
                                       ))}
+                                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '2px solid #e5e7eb', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
+                                        Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
+                                      </div>
                                     </div>
 
                                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
@@ -2130,9 +2052,113 @@ export default function ListadosTPV({ user, profile }) {
                   </tbody>
                 </table>
               </div>
+
+              {/* Vista móvil */}
+              <div className="tpv-history-mobile">
+                {filteredExpenses.map((exp, index) => {
+                  const lines = exp.productLines || [];
+                  const expDate = exp.date?.toDate ? exp.date.toDate() : new Date(exp.date);
+                  const fechaStr = expDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  const horaStr = expDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                  
+                  let total = 0;
+                  let myPart = 0;
+                  
+                  if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
+                    total = lines.reduce((sum, line) => {
+                      const qty = Number(line.qty || 0);
+                      const price = Number(line.price || 0);
+                      return sum + (qty * price);
+                    }, 0);
+                    const userParticipante = exp.participantes.find(p => p.uid === user?.uid);
+                    myPart = userParticipante ? Number(userParticipante.amount || 0) : 0;
+                  } else {
+                    total = lines.reduce((sum, line) => {
+                      const qty = Number(line.qty || 0);
+                      const price = Number(line.price || 0);
+                      return sum + (qty * price);
+                    }, 0);
+                    myPart = total;
+                  }
+
+                  return (
+                    <div key={exp.id} style={{
+                      background: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 10,
+                      padding: 12,
+                      marginBottom: 10,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>
+                            {fechaStr}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                            {horaStr}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#059669' }}>
+                          {profile?.isAdmin ? total.toFixed(2) : myPart.toFixed(2)}€
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 8 }}>
+                        {lines.map((pl, i) => (
+                          <div key={i} style={{ fontSize: 11, color: '#374151', marginBottom: 2 }}>
+                            <span style={{ fontWeight: 600 }}>{pl.qty}×</span> {pl.label} 
+                            <span style={{ color: '#6b7280' }}> ({Number(pl.price || 0).toFixed(2)}€)</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        {exp.category === 'sociedad' ? (
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            fontSize: 9,
+                            fontWeight: 600,
+                            backgroundColor: '#fff3cd',
+                            color: '#856404'
+                          }}>
+                            🏛️ Sociedad
+                          </span>
+                        ) : (
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            fontSize: 9,
+                            fontWeight: 600,
+                            backgroundColor: '#e0e7ff',
+                            color: '#3730a3'
+                          }}>
+                            Personal
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
+                          <button className="btn-small" onClick={() => startEditTicket(exp)} style={{ flex: 1, fontSize: 11 }}>
+                            ✏️ Editar
+                          </button>
+                        )}
+                        {profile?.isAdmin && (
+                          <button className="btn-ghost" onClick={() => handleDeleteTicket(exp.id)} style={{ flex: 1, fontSize: 11 }}>
+                            🗑️ Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              </>
+            )}
+          </div>
         )}
-        </div>
-      )}
       </div>
 
       {/* Modal Historial de Descargas */}

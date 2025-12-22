@@ -1,6 +1,7 @@
 {
   "short_name": "TPV",
   "name": "Sociedad TPV",
+  "version": "0.1.1",
   "description": "TPV para la sociedad — control de consumos",
   "icons": [
     {

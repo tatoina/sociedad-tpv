@@ -45,46 +45,116 @@
     <p>Si la app muestra contenido antiguo, usa este botón para limpiar la caché y service workers.</p>
     
     <button onclick="clearCacheAndReload()">Limpiar Caché y Recargar</button>
+    <button onclick="hardReload()" style="background: #ef4444; margin-left: 10px;">🔥 RESET TOTAL</button>
     
     <div id="status"></div>
 
     <script>
+        async function hardReload() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'info';
+            statusDiv.textContent = 'RESET TOTAL - Eliminando TODO...';
+
+            try {
+                // 1. Desregistrar service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+
+                // 2. Limpiar cachés
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                    }
+                }
+
+                // 3. Limpiar TODO el localStorage
+                localStorage.clear();
+
+                // 4. Limpiar sessionStorage
+                sessionStorage.clear();
+
+                // 5. Limpiar cookies
+                document.cookie.split(";").forEach((c) => {
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+
+                statusDiv.className = 'success';
+                statusDiv.textContent = '✅ TODO ELIMINADO. Cerrando app en 2 segundos...';
+
+                setTimeout(() => {
+                    window.close();
+                    window.location.href = 'about:blank';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.textContent = 'Error. Cierra la app manualmente y vuelve a abrirla.';
+            }
+        }
+
         async function clearCacheAndReload() {
             const statusDiv = document.getElementById('status');
             statusDiv.className = 'info';
             statusDiv.textContent = 'Limpiando caché...';
 
             try {
-                // Desregistrar todos los service workers
-                const registrations = await navigator.serviceWorker.getRegistrations();
-                for (let registration of registrations) {
-                    await registration.unregister();
-                    console.log('Service Worker desregistrado');
+                // 1. Desregistrar todos los service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('Service Worker desregistrado');
+                    }
                 }
 
-                // Limpiar todas las cachés
-                const cacheNames = await caches.keys();
-                for (let cacheName of cacheNames) {
-                    await caches.delete(cacheName);
-                    console.log('Caché eliminada:', cacheName);
+                // 2. Limpiar todas las cachés
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        console.log('Caché eliminada:', cacheName);
+                    }
                 }
+
+                // 3. Limpiar localStorage (excepto datos de usuario)
+                const userEmail = localStorage.getItem('userEmail');
+                localStorage.clear();
+                if (userEmail) {
+                    localStorage.setItem('userEmail', userEmail);
+                }
+
+                // 4. Limpiar sessionStorage
+                sessionStorage.clear();
 
                 statusDiv.className = 'success';
-                statusDiv.textContent = '✅ Caché limpiada. Redirigiendo a la app en 2 segundos...';
+                statusDiv.textContent = '✅ Caché limpiada completamente. Redirigiendo en 2 segundos...';
 
                 setTimeout(() => {
-                    window.location.href = '/';
+                    // Forzar recarga sin caché
+                    window.location.replace('/?nocache=' + Date.now());
                 }, 2000);
 
             } catch (error) {
                 console.error('Error limpiando caché:', error);
                 statusDiv.className = 'info';
-                statusDiv.textContent = 'Error: ' + error.message + '. Recargando de todos modos...';
+                statusDiv.textContent = 'Limpieza parcial. Redirigiendo...';
                 
                 setTimeout(() => {
-                    window.location.href = '/';
+                    window.location.replace('/?nocache=' + Date.now());
                 }, 2000);
             }
+        }
+
+        // Ejecutar limpieza automáticamente si se pasa el parámetro ?auto=1
+        if (window.location.search.includes('auto=1')) {
+            window.addEventListener('load', () => {
+                setTimeout(clearCacheAndReload, 500);
+            });
         }
     </script>
 </body>
