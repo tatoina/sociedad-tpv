@@ -120,6 +120,7 @@ export async function updateUserProfile(uid, data) {
   if (data.dob !== undefined) allowed.dob = data.dob;
   if (data.birthDate !== undefined) allowed.birthDate = data.birthDate;
   if (data.phone !== undefined) allowed.phone = data.phone;
+  if (data.alias !== undefined) allowed.alias = data.alias;
   if (data.photoURL !== undefined) allowed.photoURL = data.photoURL;
   if (data.isAdmin !== undefined) allowed.isAdmin = !!data.isAdmin;
   allowed.updatedAt = serverTimestamp();

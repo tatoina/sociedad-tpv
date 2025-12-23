@@ -1253,8 +1253,8 @@ export default function ListadosTPV({ user, profile }) {
         </div>
       )}
 
-      {/* Desglose por socio - Resumen para banco */}
-      {filteredExpenses.length > 0 && totals.sociosDesglose && totals.sociosDesglose.length > 0 && (
+      {/* Desglose por socio - Resumen para banco (solo admin) */}
+      {profile?.isAdmin && filteredExpenses.length > 0 && totals.sociosDesglose && totals.sociosDesglose.length > 0 && (
         <div style={{
           background: '#fff',
           padding: 24,

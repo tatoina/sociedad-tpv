@@ -61,7 +61,53 @@ export default function TPV({ user, profile }) {
   const [selectedSocios, setSelectedSocios] = useState({});
   const [attendeesCount, setAttendeesCount] = useState({});
   const [expandedTickets, setExpandedTickets] = useState({});
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const nav = useNavigate();
+
+  // Detectar cambios en el tamaño de ventana
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Determinar configuración según dispositivo
+  const deviceConfig = React.useMemo(() => {
+    if (windowWidth >= 1024) {
+      // PC/Desktop
+      return {
+        gridColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+        cardPadding: 14,
+        gap: 12,
+        buttonSize: 32,
+        fontSize: 14,
+        inputFontSize: 16,
+        checkboxSize: 20
+      };
+    } else if (windowWidth >= 768) {
+      // Tablet
+      return {
+        gridColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+        cardPadding: 10,
+        gap: 8,
+        buttonSize: 30,
+        fontSize: 12,
+        inputFontSize: 15,
+        checkboxSize: 18
+      };
+    } else {
+      // Móvil
+      return {
+        gridColumns: 'repeat(auto-fill, minmax(85px, 1fr))',
+        cardPadding: 8,
+        gap: 6,
+        buttonSize: 26,
+        fontSize: 11,
+        inputFontSize: 14,
+        checkboxSize: 16
+      };
+    }
+  }, [windowWidth]);
 
   useEffect(() => {
     const unsub = subscribeProducts(setProducts, true);
@@ -111,12 +157,13 @@ export default function TPV({ user, profile }) {
     const loadSocios = async () => {
       if (isForSociedad || editingTicketId) {
         try {
+          console.log('🔄 Recargando socios...');
           const allSocios = await getAllSocios();
-          console.log('🔍 Socios obtenidos:', allSocios);
+          console.log('🔍 Socios obtenidos con alias:', allSocios.map(s => ({id: s.id, name: s.name, alias: s.alias})));
           if (mounted) {
             setSocios(allSocios);
             // Solo inicializar selección si es para nuevo ticket, no para edición
-            if (isForSociedad && !editingTicketId) {
+            if (isForSociedad && !editingTicketId && allSocios.length > 0 && Object.keys(selectedSocios).length === 0) {
               const initialSelection = {};
               const initialAttendees = {};
               allSocios.forEach(s => { 
@@ -244,7 +291,8 @@ export default function TPV({ user, profile }) {
           eventoTexto: eventoTexto.trim() || null,
           totalGeneral: computedTotal,
           amountPerAttendee: amountPerAttendee,
-          totalAttendees: totalAttendees
+          totalAttendees: totalAttendees,
+          isForSociedad: true
         });
         
         console.log('✅ Ticket único creado con', participantes.length, 'participantes');
@@ -267,7 +315,8 @@ export default function TPV({ user, profile }) {
           item: salePayload.item,
           category: salePayload.category,
           amount: salePayload.amount,
-          productLines: salePayload.productLines
+          productLines: salePayload.productLines,
+          isForSociedad: false
         });
         
         alert("Venta registrada correctamente");
@@ -574,6 +623,10 @@ export default function TPV({ user, profile }) {
                 </button>
               </div>
             </div>
+            
+            {/* Solo mostrar productos y controles si NO está activado isForSociedad */}
+            {!isForSociedad && (
+            <>
             {showProducts && (
             <>
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:12}}>
@@ -689,6 +742,9 @@ export default function TPV({ user, profile }) {
             )}
             </>
             )}
+            {/* Fin de productos - se ocultan cuando isForSociedad=true */}
+            </>
+            )}
           </div>
 
           <div>
@@ -762,7 +818,8 @@ export default function TPV({ user, profile }) {
                         borderRadius:6,
                         background:'#fef9e7',
                         color:'#92400e',
-                        fontWeight:500
+                        fontWeight:500,
+                        boxSizing:'border-box'
                       }}
                     />
                   </div>
@@ -771,8 +828,8 @@ export default function TPV({ user, profile }) {
               
               {/* Lista de socios si está activado */}
               {isForSociedad && (
-                <div style={{marginTop:12, padding:12, background:'#fef3c7', borderRadius:8, border:'2px solid #f59e0b'}}>
-                  <div style={{fontWeight:700, marginBottom:8, fontSize:14, color:'#92400e'}}>
+                <div style={{marginTop:12, padding:8, background:'#fef3c7', borderRadius:12, border:'2px solid #f59e0b'}}>
+                  <div style={{fontWeight:700, marginBottom:10, fontSize:15, color:'#92400e', textAlign:'center'}}>
                     Selecciona los socios que asistieron:
                   </div>
                   {socios.length === 0 ? (
@@ -781,66 +838,173 @@ export default function TPV({ user, profile }) {
                     </div>
                   ) : (
                     <>
-                      <div style={{maxHeight:200, overflowY:'auto'}}>
-                        {socios.map(socio => (
-                          <div
-                            key={socio.id} 
-                            style={{
-                              display:'flex', 
-                              alignItems:'center', 
-                              gap:10, 
-                              marginBottom:10,
-                              padding:8,
-                              background: selectedSocios[socio.id] ? '#fef9e7' : '#fff',
-                              borderRadius:6,
-                              border: selectedSocios[socio.id] ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <input 
-                              type="checkbox" 
-                              checked={selectedSocios[socio.id] || false}
-                              onChange={(e) => {
-                                setSelectedSocios(prev => ({
-                                  ...prev,
-                                  [socio.id]: e.target.checked
-                                }));
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: deviceConfig.gridColumns,
+                        gap: deviceConfig.gap,
+                        maxHeight: 450,
+                        overflowY: 'auto',
+                        padding: 2
+                      }}>
+                        {socios.map(socio => {
+                          const displayName = (socio.alias && socio.alias.trim()) || socio.name || socio.email?.split('@')[0] || 'Sin nombre';
+                          return (
+                            <div
+                              key={socio.id} 
+                              style={{
+                                display:'flex', 
+                                flexDirection: 'column',
+                                alignItems:'center',
+                                gap:5,
+                                padding: deviceConfig.cardPadding,
+                                background: selectedSocios[socio.id] ? '#fef9e7' : '#fff',
+                                borderRadius:8,
+                                border: selectedSocios[socio.id] ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                                transition: 'all 0.2s',
+                                cursor: 'pointer',
+                                boxShadow: selectedSocios[socio.id] ? '0 2px 8px rgba(245,158,11,0.2)' : '0 1px 3px rgba(0,0,0,0.05)'
                               }}
-                              style={{width:18, height:18, cursor:'pointer'}}
-                            />
-                            <div style={{flex:1, fontSize:13}}>
-                              <div style={{fontWeight:600, color: selectedSocios[socio.id] ? '#92400e' : '#374151'}}>
-                                {socio.name || socio.email} {socio.surname || ''}
-                              </div>
-                            </div>
-                            {selectedSocios[socio.id] && (
-                              <input 
-                                type="number" 
-                                min="1" 
-                                value={attendeesCount[socio.id] || 1}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setAttendeesCount(prev => ({
+                              onClick={() => {
+                                setSelectedSocios(prev => {
+                                  const newSelected = !prev[socio.id];
+                                  if (newSelected && !attendeesCount[socio.id]) {
+                                    setAttendeesCount(prevCount => ({
+                                      ...prevCount,
+                                      [socio.id]: 1
+                                    }));
+                                  }
+                                  return {
                                     ...prev,
-                                    [socio.id]: val === '' ? 1 : Math.max(1, Number(val))
+                                    [socio.id]: newSelected
+                                  };
+                                });
+                              }}
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={selectedSocios[socio.id] || false}
+                                onChange={(e) => {
+                                  setSelectedSocios(prev => ({
+                                    ...prev,
+                                    [socio.id]: e.target.checked
                                   }));
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                onFocus={(e) => e.target.select()}
-                                style={{
-                                  width:60, 
-                                  padding:'6px 8px', 
-                                  fontSize:13, 
-                                  textAlign:'center',
-                                  border:'2px solid #f59e0b',
-                                  borderRadius:6,
-                                  fontWeight:600,
-                                  color:'#92400e'
-                                }}
+                                style={{width: deviceConfig.checkboxSize, height: deviceConfig.checkboxSize, cursor:'pointer'}}
                               />
-                            )}
-                          </div>
-                        ))}
+                              <div style={{
+                                fontWeight:700, 
+                                fontSize: deviceConfig.fontSize,
+                                color: selectedSocios[socio.id] ? '#92400e' : '#374151',
+                                textAlign: 'center',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.1,
+                                minHeight: 22
+                              }}>
+                                {displayName}
+                              </div>
+                              {selectedSocios[socio.id] && (
+                                <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3}}>
+                                  <div style={{fontSize: 9, color: '#92400e', fontWeight: 600}}>
+                                    Asist.
+                                  </div>
+                                  <div style={{display: 'flex', alignItems: 'center', gap: 2, width: '100%'}}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAttendeesCount(prev => ({
+                                          ...prev,
+                                          [socio.id]: Math.max(1, (prev[socio.id] || 1) - 1)
+                                        }));
+                                      }}
+                                      style={{
+                                        width: deviceConfig.buttonSize,
+                                        height: deviceConfig.buttonSize,
+                                        padding: 0,
+                                        fontSize: 18,
+                                        fontWeight: 700,
+                                        background: '#fff',
+                                        border: '2px solid #f59e0b',
+                                        borderRadius: 4,
+                                        color: '#92400e',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        lineHeight: 1,
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      −
+                                    </button>
+                                    <input 
+                                      type="number" 
+                                      min="1" 
+                                      value={attendeesCount[socio.id] || 1}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAttendeesCount(prev => ({
+                                          ...prev,
+                                          [socio.id]: val === '' ? 1 : Math.max(1, Number(val))
+                                        }));
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onFocus={(e) => e.target.select()}
+                                      style={{
+                                        flex: 1,
+                                        padding:'0', 
+                                        margin: 0,
+                                        fontSize: deviceConfig.inputFontSize, 
+                                        textAlign:'center',
+                                        border:'2px solid #f59e0b',
+                                        borderRadius:4,
+                                        fontWeight:700,
+                                        color:'#92400e',
+                                        background: '#fff',
+                                        minWidth: 0,
+                                        width: '100%',
+                                        boxSizing: 'border-box',
+                                        lineHeight: `${deviceConfig.buttonSize - 4}px`,
+                                        height: deviceConfig.buttonSize,
+                                        WebkitAppearance: 'none',
+                                        MozAppearance: 'textfield',
+                                        appearance: 'none'
+                                      }}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAttendeesCount(prev => ({
+                                          ...prev,
+                                          [socio.id]: (prev[socio.id] || 1) + 1
+                                        }));
+                                      }}
+                                      style={{
+                                        width: deviceConfig.buttonSize,
+                                        height: deviceConfig.buttonSize,
+                                        padding: 0,
+                                        fontSize: 18,
+                                        fontWeight: 700,
+                                        background: '#fff',
+                                        border: '2px solid #f59e0b',
+                                        borderRadius: 4,
+                                        color: '#92400e',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        lineHeight: 1,
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                       <div style={{marginTop:8, fontSize:12, color:'#92400e', fontWeight:600}}>
                         ✓ Socios seleccionados: {Object.values(selectedSocios).filter(Boolean).length} de {socios.length}
@@ -1300,6 +1464,7 @@ export default function TPV({ user, profile }) {
                 const lines = groupProductLines(h.productLines || []);
                 const isEditing = editingTicketId === h.id;
                 const isExpanded = expandedTickets[h.id] || isEditing;
+                const isSociedad = h.isForSociedad || h.category === 'sociedad' || (h.participantes && h.participantes.length > 0);
                 
                 return (
                   <React.Fragment key={h.id}>
@@ -1334,7 +1499,26 @@ export default function TPV({ user, profile }) {
                             {h.createdAtStr?.split(',')[1]?.trim() || ''}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {!isExpanded && (
+                          <div style={{ 
+                            fontSize: 11, 
+                            fontWeight: 700, 
+                            color: isSociedad ? '#92400e' : '#2563eb',
+                            background: isSociedad ? '#fef3c7' : '#dbeafe',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minWidth: 24,
+                            height: 22,
+                            marginLeft: 'auto',
+                            marginRight: 'auto'
+                          }}>
+                            {isSociedad ? 'S' : 'P'}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flex: 1 }}>
                           <div style={{ fontSize: 16, fontWeight: 700, color: '#059669' }}>
                             {Number(h.amount || 0).toFixed(2)}€
                           </div>

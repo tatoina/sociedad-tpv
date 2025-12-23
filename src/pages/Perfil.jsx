@@ -9,7 +9,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
     name: "",
     surname: "",
     phone: "",
-    dob: ""
+    dob: "",
+    alias: ""
   });
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -22,7 +23,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
         name: profile.name || "",
         surname: profile.surname || "",
         phone: profile.phone || "",
-        dob: profile.dob || ""
+        dob: profile.dob || "",
+        alias: profile.alias || ""
       });
     }
   }, [profile]);
@@ -66,7 +68,8 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
       name: profile?.name || "",
       surname: profile?.surname || "",
       phone: profile?.phone || "",
-      dob: profile?.dob || ""
+      dob: profile?.dob || "",
+      alias: profile?.alias || ""
     });
     setEditing(false);
   };
@@ -239,6 +242,11 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
           </div>
 
           <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Alias (nombre corto)</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{profile?.alias || "Sin alias"}</div>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: "#666", marginBottom: 4 }}>Teléfono</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{profile?.phone || "Sin teléfono"}</div>
           </div>
@@ -313,6 +321,24 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
               className="full-input"
               placeholder="Introduce tus apellidos"
             />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
+              Alias (nombre corto)
+            </label>
+            <input
+              type="text"
+              name="alias"
+              value={formData.alias}
+              onChange={handleChange}
+              className="full-input"
+              placeholder="Ej: Pepe, Juan, Ana..."
+              maxLength="15"
+            />
+            <small style={{ fontSize: 11, color: '#666', display: 'block', marginTop: 4 }}>
+              Nombre corto para mostrarse en listas
+            </small>
           </div>
 
           <div style={{ marginBottom: 16 }}>

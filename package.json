@@ -1,6 +1,6 @@
 {
   "name": "sociedad-tpv",
-  "version": "0.1.1",
+  "version": "2.2.1",
   "private": true,
   "scripts": {
     "start": "react-scripts start",
