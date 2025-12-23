@@ -1155,7 +1155,7 @@ export default function ListadosTPV({ user, profile }) {
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: profile?.isAdmin ? '1fr 1fr 1fr' : '1fr 1fr', gap: 40, alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: profile?.isAdmin ? '1fr 1fr 1fr' : '1fr 1fr', gap: 20, alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500, color: '#6b7280' }}>
               Desde
@@ -1171,7 +1171,8 @@ export default function ListadosTPV({ user, profile }) {
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 outline: 'none',
-                transition: 'border-color 0.2s'
+                transition: 'border-color 0.2s',
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -1190,7 +1191,8 @@ export default function ListadosTPV({ user, profile }) {
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 outline: 'none',
-                transition: 'border-color 0.2s'
+                transition: 'border-color 0.2s',
+                boxSizing: 'border-box'
               }}
             />
           </div>
