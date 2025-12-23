@@ -2486,73 +2486,143 @@ export default function ListadosTPV({ user, profile }) {
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <button
-                onClick={() => {
-                  setShowExportModal(false);
-                  exportarDetalle();
-                }}
-                style={{
-                  padding: '16px 24px',
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: '#fff',
-                  backgroundColor: '#3b82f6',
-                  border: 'none',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#2563eb';
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#3b82f6';
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
-                }}
-              >
-                📋 Exportación DETALLADA
-                <div style={{ fontSize: 13, fontWeight: 400, marginTop: 4, opacity: 0.9 }}>
-                  Todas las líneas con productos y totales por usuario
+              {/* Exportación Detallada */}
+              <div style={{ 
+                border: '2px solid #e5e7eb', 
+                borderRadius: 12, 
+                padding: 16,
+                backgroundColor: '#f9fafb'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                      📋 Exportación DETALLADA
+                    </div>
+                    <div style={{ fontSize: 13, color: '#6b7280' }}>
+                      Todas las líneas con productos y totales por usuario
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert(
+                        profile?.isAdmin 
+                          ? '📋 EXPORTACIÓN DETALLADA (ADMIN)\n\n✅ Incluye TODOS los tickets de TODOS los socios\n✅ Cada fila muestra: Usuario, Fecha, Tipo de gasto, Producto, Cantidad, Precio, Total\n✅ Ordenado por usuario y fecha\n✅ Ideal para análisis detallado completo de la sociedad'
+                          : '📋 EXPORTACIÓN DETALLADA (USUARIO)\n\n✅ Incluye SOLO TUS tickets\n✅ Gastos personales + tus participaciones en gastos de sociedad\n✅ Cada fila muestra: Fecha, Tipo de gasto, Producto, Cantidad, Precio, Total\n✅ Ordenado por fecha\n✅ Ideal para tu análisis personal detallado'
+                      );
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#3b82f6',
+                      backgroundColor: '#dbeafe',
+                      border: '1px solid #93c5fd',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Ver información sobre este tipo de exportación"
+                  >
+                    ℹ️ Info
+                  </button>
                 </div>
-              </button>
+                <button
+                  onClick={() => {
+                    setShowExportModal(false);
+                    exportarDetalle();
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 24px',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: '#3b82f6',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#2563eb';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = '#3b82f6';
+                  }}
+                >
+                  Exportar Detallada
+                </button>
+              </div>
 
-              <button
-                onClick={() => {
-                  setShowExportModal(false);
-                  exportarSimple();
-                }}
-                style={{
-                  padding: '16px 24px',
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: '#fff',
-                  backgroundColor: '#10b981',
-                  border: 'none',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#059669';
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#10b981';
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
-                }}
-              >
-                📊 Exportación SIMPLE
-                <div style={{ fontSize: 13, fontWeight: 400, marginTop: 4, opacity: 0.9 }}>
-                  Solo una línea por socio con su total
+              {/* Exportación Simple */}
+              <div style={{ 
+                border: '2px solid #e5e7eb', 
+                borderRadius: 12, 
+                padding: 16,
+                backgroundColor: '#f9fafb'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                      📊 Exportación SIMPLE
+                    </div>
+                    <div style={{ fontSize: 13, color: '#6b7280' }}>
+                      Solo una línea por socio con su total
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert(
+                        profile?.isAdmin 
+                          ? '📊 EXPORTACIÓN SIMPLE (ADMIN)\n\n✅ Incluye TODOS los socios\n✅ Una fila por socio con su total\n✅ Columnas: Usuario, Gastos Personales, Gastos Sociedad, Total\n✅ Ideal para resumen rápido de cobros/pagos'
+                          : '📊 EXPORTACIÓN SIMPLE (USUARIO)\n\n✅ Incluye SOLO TU información\n✅ Una fila con tus totales\n✅ Columnas: Tu nombre, Gastos Personales, Gastos Sociedad, Total\n✅ Ideal para resumen rápido de tus gastos'
+                      );
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#10b981',
+                      backgroundColor: '#d1fae5',
+                      border: '1px solid #6ee7b7',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Ver información sobre este tipo de exportación"
+                  >
+                    ℹ️ Info
+                  </button>
                 </div>
-              </button>
+                <button
+                  onClick={() => {
+                    setShowExportModal(false);
+                    exportarSimple();
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 24px',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#059669';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = '#10b981';
+                  }}
+                >
+                  Exportar Simple
+                </button>
+              </div>
 
               <button
                 onClick={() => setShowExportModal(false)}
