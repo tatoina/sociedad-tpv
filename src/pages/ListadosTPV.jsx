@@ -1402,7 +1402,7 @@ export default function ListadosTPV({ user, profile }) {
             <div style={{ marginBottom: 20 }}>
               <input
                 type="text"
-                placeholder="Buscar por socio, fecha o producto..."
+                placeholder="Buscar por fecha o producto..."
                 value={searchTicket}
                 onChange={(e) => setSearchTicket(e.target.value)}
                 style={{
