@@ -365,6 +365,8 @@ export default function ListadosTPV({ user, profile }) {
     let totalSociedad = 0;
     let totalPersonal = 0;
     const sociosDesglose = {}; // Desglose por socio
+    const isAdmin = profile?.isAdmin;
+    const currentUserId = user?.uid;
 
     filteredExpenses.forEach(exp => {
       let expAmount = 0;
@@ -374,6 +376,12 @@ export default function ListadosTPV({ user, profile }) {
         // Para cada participante, sumar su parte
         exp.participantes.forEach(p => {
           const amount = Number(p.amount || 0);
+          
+          // Si NO es admin, solo contar la parte del usuario actual
+          if (!isAdmin && p.uid !== currentUserId) {
+            return; // Saltar este participante
+          }
+          
           totalSociedad += amount;
           totalAmount += amount;
           
@@ -405,6 +413,11 @@ export default function ListadosTPV({ user, profile }) {
           const price = Number(line.price || 0);
           expAmount += qty * price;
         });
+      }
+      
+      // Si NO es admin, solo contar los tickets del usuario actual
+      if (!isAdmin && exp.uid !== currentUserId && exp.userId !== currentUserId) {
+        return; // Saltar este ticket
       }
       
       totalAmount += expAmount;
@@ -1214,12 +1227,30 @@ export default function ListadosTPV({ user, profile }) {
 
       {/* Resumen de totales */}
       {filteredExpenses.length > 0 && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: 20,
-          marginBottom: 32
-        }}>
+        <>
+          {/* Título con nombre de usuario */}
+          <div style={{ 
+            marginBottom: 16,
+            textAlign: 'center'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: 18, 
+              fontWeight: 600, 
+              color: '#374151',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              GASTOS TOTALES DE: {profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario'}
+            </h3>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: 20,
+            marginBottom: 32
+          }}>
           <div style={{
             background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             color: '#fff',
@@ -1250,7 +1281,8 @@ export default function ListadosTPV({ user, profile }) {
             <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>Total General</div>
             <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalAmount}€</div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Desglose por socio - Resumen para banco (solo admin) */}
