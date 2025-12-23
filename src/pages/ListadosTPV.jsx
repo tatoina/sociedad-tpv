@@ -1235,6 +1235,7 @@ export default function ListadosTPV({ user, profile }) {
           }}>
             <h3 style={{ 
               margin: 0, 
+              marginBottom: 8,
               fontSize: 18, 
               fontWeight: 600, 
               color: '#374151',
@@ -1243,6 +1244,13 @@ export default function ListadosTPV({ user, profile }) {
             }}>
               GASTOS TOTALES DE: {profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario'}
             </h3>
+            <div style={{
+              fontSize: 14,
+              color: '#6b7280',
+              fontWeight: 500
+            }}>
+              📅 {new Date(dateFrom).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(dateTo).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </div>
           </div>
 
           <div style={{
