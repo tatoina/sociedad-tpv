@@ -17,6 +17,9 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const nav = useNavigate();
 
+  // Verificar si el perfil está incompleto
+  const isIncomplete = !profile?.name || !profile?.surname || !profile?.phone || !profile?.dob;
+
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -26,8 +29,12 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
         dob: profile.dob || "",
         alias: profile.alias || ""
       });
+      // Si el perfil está incompleto, activar automáticamente el modo de edición
+      if (isIncomplete) {
+        setEditing(true);
+      }
     }
-  }, [profile]);
+  }, [profile, isIncomplete]);
 
   const handleChange = (e) => {
     setFormData({
@@ -52,7 +59,11 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
       setEditing(false);
       // Recargar perfil
       if (onProfileUpdate) {
-        onProfileUpdate();
+        await onProfileUpdate();
+      }
+      // Si el perfil estaba incompleto y ahora está completo, redirigir al menú
+      if (isIncomplete) {
+        nav("/menu");
       }
     } catch (err) {
       console.error("Error actualizando perfil:", err);
@@ -124,9 +135,6 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
       setUploadingPhoto(false);
     }
   };
-
-  // Verificar si el perfil está incompleto
-  const isIncomplete = !profile?.name || !profile?.surname || !profile?.phone || !profile?.dob;
 
   return (
     <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
@@ -379,15 +387,17 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
             >
               {loading ? "Guardando..." : "💾 Guardar cambios"}
             </button>
-            <button 
-              type="button" 
-              className="btn-ghost" 
-              onClick={handleCancel}
-              disabled={loading}
-              style={{ flex: 1 }}
-            >
-              ❌ Cancelar
-            </button>
+            {!isIncomplete && (
+              <button 
+                type="button" 
+                className="btn-ghost" 
+                onClick={handleCancel}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                ❌ Cancelar
+              </button>
+            )}
           </div>
         </form>
       )}

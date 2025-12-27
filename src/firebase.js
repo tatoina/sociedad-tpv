@@ -116,9 +116,7 @@ export async function updateUserProfile(uid, data) {
   const allowed = {};
   if (data.name !== undefined) allowed.name = data.name;
   if (data.surname !== undefined) allowed.surname = data.surname;
-  if (data.lastName !== undefined) allowed.lastName = data.lastName;
   if (data.dob !== undefined) allowed.dob = data.dob;
-  if (data.birthDate !== undefined) allowed.birthDate = data.birthDate;
   if (data.phone !== undefined) allowed.phone = data.phone;
   if (data.alias !== undefined) allowed.alias = data.alias;
   if (data.photoURL !== undefined) allowed.photoURL = data.photoURL;

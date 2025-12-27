@@ -148,7 +148,7 @@ export default function App() {
 
   // Verificar si el perfil está completo
   const isProfileComplete = (prof) => {
-    return prof && prof.name && prof.lastName && prof.phone && prof.birthDate;
+    return prof && prof.name && prof.surname && prof.phone && prof.dob;
   };
 
   // Enviar sugerencia
