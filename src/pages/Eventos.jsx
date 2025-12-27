@@ -476,7 +476,9 @@ export default function Eventos({ user, profile }) {
                   }}>
                     {fechaProximaCena && !isFechaPassada(fechaProximaCena) 
                       ? formatearFecha(fechaProximaCena)
-                      : 'NO HAY FECHA ESTABLECIDA'}
+                      : (fechaProximaCena && isFechaPassada(fechaProximaCena) 
+                          ? 'SIGUIENTE CENA AUN SIN PLANIFICAR' 
+                          : 'NO HAY FECHA ESTABLECIDA')}
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

@@ -3,6 +3,18 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { APP_VERSION } from "../App";
 
+// Detectar tipo de dispositivo
+const getDeviceType = () => {
+  const ua = navigator.userAgent;
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+    return "📱 Tablet";
+  }
+  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+    return "📱 Móvil";
+  }
+  return "💻 PC";
+};
+
 export default function Menu({ user, profile }) {
   const MenuItem = ({ to, icon, label, isAdmin = false }) => (
     <Link to={to} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -86,9 +98,14 @@ export default function Menu({ user, profile }) {
         paddingBottom: 20,
         fontSize: 11,
         color: '#9ca3af',
-        textAlign: 'center'
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
       }}>
-        v{APP_VERSION}
+        <span>{getDeviceType()}</span>
+        <span>•</span>
+        <span>v{APP_VERSION}</span>
       </div>
     </div>
   );

@@ -205,7 +205,6 @@ export default function Perfil({ user, profile, onProfileUpdate }) {
                 <input 
                   type="file" 
                   accept="image/*"
-                  capture="user"
                   onChange={handlePhotoChange}
                   disabled={uploadingPhoto}
                   style={{ display: 'none' }}

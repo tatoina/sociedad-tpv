@@ -179,7 +179,18 @@ export default function Productos({ profile }) {
             </select>
           )}
           
-          <input className="full-input" placeholder="Precio" type="number" step="0.01" value={newRow.price} onChange={(e) => setNewRow(r => ({ ...r, price: e.target.value }))} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input 
+              className="full-input" 
+              placeholder="Precio" 
+              type="number" 
+              step="0.01" 
+              value={newRow.price} 
+              onChange={(e) => setNewRow(r => ({ ...r, price: e.target.value }))} 
+              style={{ paddingRight: '28px' }}
+            />
+            <span style={{ position: 'absolute', right: 12, fontSize: 14, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+          </div>
           <label style={{display:'flex', alignItems:'center', gap:8}}>
             <input type="checkbox" checked={newRow.active} onChange={(e) => setNewRow(r => ({ ...r, active: e.target.checked }))} />
             Activo
@@ -261,7 +272,17 @@ export default function Productos({ profile }) {
                   </td>
                   <td style={{padding:8, textAlign:'right'}}>
                     {editingId === p.id ? (
-                      <input className="small-input" type="number" step="0.01" value={rowForm.price} onChange={(e) => setRowForm(r => ({ ...r, price: e.target.value }))} />
+                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                        <input 
+                          className="small-input" 
+                          type="number" 
+                          step="0.01" 
+                          value={rowForm.price} 
+                          onChange={(e) => setRowForm(r => ({ ...r, price: e.target.value }))} 
+                          style={{ paddingRight: '22px', width: '100px' }}
+                        />
+                        <span style={{ position: 'absolute', right: 8, fontSize: 13, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+                      </div>
                     ) : (Number(p.price || 0).toFixed(2) + " €")}
                   </td>
                   <td style={{padding:8, textAlign:'center'}}>

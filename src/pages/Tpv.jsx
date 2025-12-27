@@ -62,6 +62,7 @@ export default function TPV({ user, profile }) {
   const [attendeesCount, setAttendeesCount] = useState({});
   const [expandedTickets, setExpandedTickets] = useState({});
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [showSociosSection, setShowSociosSection] = useState(false);
   const nav = useNavigate();
 
   // Detectar cambios en el tamaño de ventana
@@ -1179,14 +1180,32 @@ export default function TPV({ user, profile }) {
                                   </div>
 
                                   <div style={{ marginBottom: 16 }}>
-                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>
-                                      Socios participantes
-                                    </label>
-                                    <div style={{ 
-                                      maxHeight: 200, 
-                                      overflowY: 'auto', 
-                                      border: '1px solid #d1d5db', 
-                                      borderRadius: 6, 
+                                    <div 
+                                      onClick={() => setShowSociosSection(!showSociosSection)}
+                                      style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        padding: '8px 12px',
+                                        background: '#f3f4f6',
+                                        borderRadius: 6,
+                                        marginBottom: showSociosSection ? 8 : 0
+                                      }}
+                                    >
+                                      <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                                        Socios participantes
+                                      </label>
+                                      <span style={{ fontSize: 16, color: '#6b7280' }}>
+                                        {showSociosSection ? '▼' : '▶'}
+                                      </span>
+                                    </div>
+                                    {showSociosSection && (
+                                      <div style={{ 
+                                        maxHeight: 200, 
+                                        overflowY: 'auto', 
+                                        border: '1px solid #d1d5db', 
+                                        borderRadius: 6, 
                                       padding: 12,
                                       backgroundColor: '#f9fafb'
                                     }}>
@@ -1219,7 +1238,7 @@ export default function TPV({ user, profile }) {
                                             style={{ cursor: 'pointer' }}
                                           />
                                           <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
-                                            {socio.nombre || socio.email}
+                                            {socio.alias || socio.nombre || socio.email}
                                           </span>
                                           {editingData.selectedSocios?.[socio.id] && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1229,11 +1248,21 @@ export default function TPV({ user, profile }) {
                                                 min="1"
                                                 value={editingData.attendeesCount?.[socio.id] || 1}
                                                 onChange={(e) => {
+                                                  const val = e.target.value;
                                                   const newAttendees = { 
                                                     ...editingData.attendeesCount, 
-                                                    [socio.id]: Number(e.target.value) || 1 
+                                                    [socio.id]: val === '' ? '' : Math.max(1, Number(val))
                                                   };
                                                   setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                }}
+                                                onBlur={(e) => {
+                                                  if (e.target.value === '' || Number(e.target.value) < 1) {
+                                                    const newAttendees = { 
+                                                      ...editingData.attendeesCount, 
+                                                      [socio.id]: 1
+                                                    };
+                                                    setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                  }
                                                 }}
                                                 style={{
                                                   width: 60,
@@ -1248,6 +1277,7 @@ export default function TPV({ user, profile }) {
                                         </div>
                                       ))}
                                     </div>
+                                    )}
                                   </div>
                                 </>
                               )}
@@ -1257,7 +1287,7 @@ export default function TPV({ user, profile }) {
                                   <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
                                     Añadir productos
                                   </label>
-                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
                                     <select
                                       value={selectedCategoryEdit}
                                       onChange={(e) => {
@@ -1265,13 +1295,16 @@ export default function TPV({ user, profile }) {
                                         setSelectedProductEdit('');
                                       }}
                                       style={{
-                                        minWidth: 200,
+                                        minWidth: 150,
+                                        maxWidth: '100%',
+                                        flex: '1 1 auto',
                                         padding: '8px 12px',
                                         fontSize: 14,
                                         border: '1px solid #d1d5db',
                                         borderRadius: 6,
                                         backgroundColor: '#fff',
-                                        cursor: 'pointer'
+                                        cursor: 'pointer',
+                                        boxSizing: 'border-box'
                                       }}
                                     >
                                       <option value="">Seleccionar categoría...</option>
@@ -1293,14 +1326,16 @@ export default function TPV({ user, profile }) {
                                       onChange={(e) => setSelectedProductEdit(e.target.value)}
                                       disabled={!selectedCategoryEdit}
                                       style={{
-                                        minWidth: 300,
-                                        flex: 1,
+                                        minWidth: 180,
+                                        maxWidth: '100%',
+                                        flex: '2 1 auto',
                                         padding: '8px 12px',
                                         fontSize: 14,
                                         border: '1px solid #d1d5db',
                                         borderRadius: 6,
                                         backgroundColor: !selectedCategoryEdit ? '#f3f4f6' : '#fff',
-                                        cursor: !selectedCategoryEdit ? 'not-allowed' : 'pointer'
+                                        cursor: !selectedCategoryEdit ? 'not-allowed' : 'pointer',
+                                        boxSizing: 'border-box'
                                       }}
                                     >
                                       <option value="">Seleccionar producto...</option>
@@ -1340,7 +1375,8 @@ export default function TPV({ user, profile }) {
                                         border: 'none',
                                         borderRadius: 6,
                                         cursor: !selectedProductEdit ? 'not-allowed' : 'pointer',
-                                        whiteSpace: 'nowrap'
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0
                                       }}
                                     >
                                       + Añadir
@@ -1356,7 +1392,8 @@ export default function TPV({ user, profile }) {
                                         border: 'none',
                                         borderRadius: 6,
                                         cursor: 'pointer',
-                                        whiteSpace: 'nowrap'
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0
                                       }}
                                     >
                                       + Manual
@@ -1369,43 +1406,65 @@ export default function TPV({ user, profile }) {
                                   </label>
                                 </div>
                                 {(editingData.productLines || []).map((pl, idx) => (
-                                  <div key={idx} style={{display:'flex', gap:8, alignItems:'center', marginBottom:8}}>
+                                  <div key={idx} style={{display:'flex', gap:4, alignItems:'center', marginBottom:8}}>
                                     <input 
                                       className="small-input" 
                                       placeholder="Producto" 
                                       value={pl.label} 
                                       onChange={(e) => updateLineEditing(idx, { label: e.target.value })} 
-                                      style={{ flex: 1 }}
+                                      style={{ flex: 1, minWidth: 0, fontSize: 13 }}
                                     />
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                      <input 
+                                        className="small-input" 
+                                        type="number" 
+                                        step="0.01" 
+                                        placeholder="€"
+                                        value={pl.price} 
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
+                                        }}
+                                        onBlur={(e) => {
+                                          if (e.target.value === '') {
+                                            updateLineEditing(idx, { price: 0 });
+                                          }
+                                        }}
+                                        style={{width: 60, paddingRight: 18, flexShrink: 0, fontSize: 13}}
+                                      />
+                                      <span style={{ position: 'absolute', right: 6, fontSize: 12, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+                                    </div>
                                     <input 
                                       className="small-input" 
                                       type="number" 
-                                      step="0.01" 
-                                      placeholder="Precio"
-                                      value={pl.price} 
-                                      onChange={(e) => updateLineEditing(idx, { price: Number(e.target.value) || 0 })} 
-                                      style={{width:100}}
-                                    />
-                                    <input 
-                                      className="small-input" 
-                                      type="number" 
-                                      placeholder="Cant."
+                                      placeholder="Qty"
                                       value={pl.qty} 
                                       min="1" 
-                                      onChange={(e) => updateLineEditing(idx, { qty: Number(e.target.value) || 1 })} 
-                                      style={{width:70}}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
+                                      }}
+                                      onBlur={(e) => {
+                                        if (e.target.value === '' || Number(e.target.value) < 1) {
+                                          updateLineEditing(idx, { qty: 1 });
+                                        }
+                                      }}
+                                      style={{width: 42, flexShrink: 0, fontSize: 13}}
                                     />
                                     <button 
                                       onClick={() => removeLineFromEditing(idx)}
                                       style={{
-                                        padding: '8px 12px',
-                                        fontSize: 13,
+                                        padding: '6px 8px',
+                                        fontSize: 16,
                                         fontWeight: 600,
                                         color: '#fff',
                                         backgroundColor: '#ef4444',
                                         border: 'none',
                                         borderRadius: 6,
-                                        cursor: 'pointer'
+                                        cursor: 'pointer',
+                                        flexShrink: 0,
+                                        minWidth: 34,
+                                        lineHeight: 1
                                       }}
                                     >
                                       🗑️
@@ -1654,17 +1713,35 @@ export default function TPV({ user, profile }) {
 
                             {/* Selección de socios */}
                             <div style={{ marginBottom: 12 }}>
-                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
-                                Participantes
-                              </label>
-                              <div style={{ 
-                                maxHeight: 200, 
-                                overflowY: 'auto',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 8,
-                                padding: 8,
-                                background: '#fff'
-                              }}>
+                              <div 
+                                onClick={() => setShowSociosSection(!showSociosSection)}
+                                style={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  padding: '8px 12px',
+                                  background: '#f3f4f6',
+                                  borderRadius: 6,
+                                  marginBottom: showSociosSection ? 8 : 0
+                                }}
+                              >
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                  Participantes
+                                </label>
+                                <span style={{ fontSize: 14, color: '#6b7280' }}>
+                                  {showSociosSection ? '▼' : '▶'}
+                                </span>
+                              </div>
+                              {showSociosSection && (
+                                <div style={{ 
+                                  maxHeight: 200, 
+                                  overflowY: 'auto',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: 8,
+                                  padding: 8,
+                                  background: '#fff'
+                                }}>
                                 {socios.map(socio => (
                                   <div key={socio.id} style={{ 
                                     display: 'flex', 
@@ -1695,7 +1772,7 @@ export default function TPV({ user, profile }) {
                                       color: '#374151',
                                       fontWeight: editingData.selectedSocios[socio.id] ? 500 : 400
                                     }}>
-                                      {socio.nombre || socio.email}
+                                      {socio.alias || socio.nombre || socio.email}
                                     </label>
                                     {editingData.selectedSocios[socio.id] && (
                                       <input 
@@ -1725,6 +1802,7 @@ export default function TPV({ user, profile }) {
                                   </div>
                                 ))}
                               </div>
+                              )}
                             </div>
                           </>
                         )}
@@ -1848,7 +1926,7 @@ export default function TPV({ user, profile }) {
                           {(editingData.productLines || []).map((line, idx) => (
                             <div key={idx} style={{ 
                               display: 'flex', 
-                              gap: 6, 
+                              gap: 4, 
                               marginBottom: 8,
                               alignItems: 'center',
                               background: '#fff',
@@ -1862,7 +1940,8 @@ export default function TPV({ user, profile }) {
                                 onChange={(e) => updateLineEditing(idx, { label: e.target.value })}
                                 placeholder="Producto"
                                 style={{ 
-                                  flex: 2,
+                                  flex: 1,
+                                  minWidth: 0,
                                   padding: 6,
                                   fontSize: 12,
                                   border: '1px solid #d1d5db',
@@ -1872,7 +1951,15 @@ export default function TPV({ user, profile }) {
                               <input 
                                 type="number"
                                 value={line.qty || 1}
-                                onChange={(e) => updateLineEditing(idx, { qty: parseInt(e.target.value) || 1 })}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
+                                }}
+                                onBlur={(e) => {
+                                  if (e.target.value === '' || Number(e.target.value) < 1) {
+                                    updateLineEditing(idx, { qty: 1 });
+                                  }
+                                }}
                                 min="1"
                                 style={{ 
                                   width: 40,
@@ -1883,30 +1970,45 @@ export default function TPV({ user, profile }) {
                                   textAlign: 'center'
                                 }}
                               />
-                              <input 
-                                type="number"
-                                value={line.price || 0}
-                                onChange={(e) => updateLineEditing(idx, { price: parseFloat(e.target.value) || 0 })}
-                                step="0.01"
-                                style={{ 
-                                  width: 60,
-                                  padding: 6,
-                                  fontSize: 12,
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: 4
-                                }}
-                              />
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input 
+                                  type="number"
+                                  value={line.price || 0}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
+                                  }}
+                                  onBlur={(e) => {
+                                    if (e.target.value === '') {
+                                      updateLineEditing(idx, { price: 0 });
+                                    }
+                                  }}
+                                  step="0.01"
+                                  style={{ 
+                                    width: 50,
+                                    padding: 6,
+                                    paddingRight: 18,
+                                    fontSize: 12,
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 4
+                                  }}
+                                />
+                                <span style={{ position: 'absolute', right: 6, fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+                              </div>
                               <button 
                                 onClick={() => removeLineFromEditing(idx)}
                                 style={{
                                   padding: 4,
                                   fontSize: 14,
-                                  background: '#fee',
-                                  border: '1px solid #fcc',
+                                  background: '#fee2e2',
+                                  border: '1px solid #fecaca',
                                   borderRadius: 4,
                                   cursor: 'pointer',
-                                  width: 30,
-                                  height: 30
+                                  width: 32,
+                                  height: 32,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
                                 }}
                               >
                                 🗑️

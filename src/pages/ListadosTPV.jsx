@@ -23,6 +23,7 @@ export default function ListadosTPV({ user, profile }) {
   const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
+  const [showSociosSection, setShowSociosSection] = useState(false);
   
   // Inicializar con el mes actual
   const getCurrentMonthDates = () => {
@@ -1588,8 +1589,8 @@ export default function ListadosTPV({ user, profile }) {
                                     {editingTicketId === exp.id ? '✖️' : '✏️'}
                                   </button>
                                 )}
-                                {/* Botón eliminar solo para admin */}
-                                {profile?.isAdmin && (
+                                {/* Botón eliminar para admin o si el ticket es del usuario */}
+                                {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
                                   <button 
                                     className="btn-ghost" 
                                     onClick={() => handleDeleteTicket(exp.id)}
@@ -1704,11 +1705,21 @@ export default function ListadosTPV({ user, profile }) {
                                                       min="1"
                                                       value={editingData.attendeesCount?.[socio.id] || 1}
                                                       onChange={(e) => {
+                                                        const val = e.target.value;
                                                         const newAttendees = { 
                                                           ...editingData.attendeesCount, 
-                                                          [socio.id]: Number(e.target.value) || 1 
+                                                          [socio.id]: val === '' ? '' : Math.max(1, Number(val))
                                                         };
                                                         setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                      }}
+                                                      onBlur={(e) => {
+                                                        if (e.target.value === '' || Number(e.target.value) < 1) {
+                                                          const newAttendees = { 
+                                                            ...editingData.attendeesCount, 
+                                                            [socio.id]: 1
+                                                          };
+                                                          setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                        }
                                                       }}
                                                       style={{
                                                         width: 60,
@@ -1732,7 +1743,7 @@ export default function ListadosTPV({ user, profile }) {
                                         <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
                                           Añadir productos
                                         </label>
-                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
                                           <select
                                             value={selectedCategory}
                                             onChange={(e) => {
@@ -1740,13 +1751,16 @@ export default function ListadosTPV({ user, profile }) {
                                               setSelectedProduct('');
                                             }}
                                             style={{
-                                              minWidth: 200,
+                                              minWidth: 150,
+                                              maxWidth: '100%',
+                                              flex: '1 1 auto',
                                               padding: '8px 12px',
                                               fontSize: 14,
                                               border: '1px solid #d1d5db',
                                               borderRadius: 6,
                                               backgroundColor: '#fff',
-                                              cursor: 'pointer'
+                                              cursor: 'pointer',
+                                              boxSizing: 'border-box'
                                             }}
                                           >
                                             <option value="">Seleccionar categoría...</option>
@@ -1768,14 +1782,16 @@ export default function ListadosTPV({ user, profile }) {
                                             onChange={(e) => setSelectedProduct(e.target.value)}
                                             disabled={!selectedCategory}
                                             style={{
-                                              minWidth: 300,
-                                              flex: 1,
+                                              minWidth: 180,
+                                              maxWidth: '100%',
+                                              flex: '2 1 auto',
                                               padding: '8px 12px',
                                               fontSize: 14,
                                               border: '1px solid #d1d5db',
                                               borderRadius: 6,
                                               backgroundColor: !selectedCategory ? '#f3f4f6' : '#fff',
-                                              cursor: !selectedCategory ? 'not-allowed' : 'pointer'
+                                              cursor: !selectedCategory ? 'not-allowed' : 'pointer',
+                                              boxSizing: 'border-box'
                                             }}
                                           >
                                             <option value="">Seleccionar producto...</option>
@@ -1815,7 +1831,8 @@ export default function ListadosTPV({ user, profile }) {
                                               border: 'none',
                                               borderRadius: 6,
                                               cursor: !selectedProduct ? 'not-allowed' : 'pointer',
-                                              whiteSpace: 'nowrap'
+                                              whiteSpace: 'nowrap',
+                                              flexShrink: 0
                                             }}
                                           >
                                             + Añadir
@@ -1831,7 +1848,8 @@ export default function ListadosTPV({ user, profile }) {
                                               border: 'none',
                                               borderRadius: 6,
                                               cursor: 'pointer',
-                                              whiteSpace: 'nowrap'
+                                              whiteSpace: 'nowrap',
+                                              flexShrink: 0
                                             }}
                                           >
                                             + Manual
@@ -1844,43 +1862,65 @@ export default function ListadosTPV({ user, profile }) {
                                         </label>
                                       </div>
                                       {(editingData.productLines || []).map((pl, idx) => (
-                                        <div key={idx} style={{display:'flex', gap:8, alignItems:'center', marginBottom:8}}>
+                                        <div key={idx} style={{display:'flex', gap:4, alignItems:'center', marginBottom:8}}>
                                           <input 
                                             className="small-input" 
                                             placeholder="Producto" 
                                             value={pl.label} 
                                             onChange={(e) => updateLineEditing(idx, { label: e.target.value })} 
-                                            style={{ flex: 1 }}
+                                            style={{ flex: 1, minWidth: 0, fontSize: 13 }}
                                           />
+                                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                            <input 
+                                              className="small-input" 
+                                              type="number" 
+                                              step="0.01" 
+                                              placeholder="€"
+                                              value={pl.price} 
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
+                                              }}
+                                              onBlur={(e) => {
+                                                if (e.target.value === '') {
+                                                  updateLineEditing(idx, { price: 0 });
+                                                }
+                                              }}
+                                              style={{width: 60, paddingRight: 18, flexShrink: 0, fontSize: 13}}
+                                            />
+                                            <span style={{ position: 'absolute', right: 6, fontSize: 12, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+                                          </div>
                                           <input 
                                             className="small-input" 
                                             type="number" 
-                                            step="0.01" 
-                                            placeholder="Precio"
-                                            value={pl.price} 
-                                            onChange={(e) => updateLineEditing(idx, { price: Number(e.target.value) || 0 })} 
-                                            style={{width:100}}
-                                          />
-                                          <input 
-                                            className="small-input" 
-                                            type="number" 
-                                            placeholder="Cant."
+                                            placeholder="Qty"
                                             value={pl.qty} 
                                             min="1" 
-                                            onChange={(e) => updateLineEditing(idx, { qty: Number(e.target.value) || 1 })} 
-                                            style={{width:70}}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
+                                            }}
+                                            onBlur={(e) => {
+                                              if (e.target.value === '' || Number(e.target.value) < 1) {
+                                                updateLineEditing(idx, { qty: 1 });
+                                              }
+                                            }}
+                                            style={{width: 42, flexShrink: 0, fontSize: 13}}
                                           />
                                           <button 
                                             onClick={() => removeLineFromEditing(idx)}
                                             style={{
-                                              padding: '8px 12px',
-                                              fontSize: 13,
+                                              padding: '6px 8px',
+                                              fontSize: 16,
                                               fontWeight: 600,
                                               color: '#fff',
                                               backgroundColor: '#ef4444',
                                               border: 'none',
                                               borderRadius: 6,
-                                              cursor: 'pointer'
+                                              cursor: 'pointer',
+                                              flexShrink: 0,
+                                              minWidth: 34,
+                                              lineHeight: 1
                                             }}
                                           >
                                             🗑️
@@ -2132,6 +2172,322 @@ export default function ListadosTPV({ user, profile }) {
                     myPart = total;
                   }
 
+                  // Si el ticket está siendo editado, mostrar el formulario completo
+                  if (editingTicketId === exp.id && editingData) {
+                    return (
+                      <div key={exp.id} style={{
+                        background: '#fff',
+                        border: '2px solid #3b82f6',
+                        borderRadius: 10,
+                        padding: 16,
+                        marginBottom: 10,
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)'
+                      }}>
+                        <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                          ✏️ Editando ticket
+                        </h4>
+
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Fecha y hora
+                          </label>
+                          <input 
+                            type="datetime-local" 
+                            value={editingData.dateInput}
+                            onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))}
+                            className="full-input"
+                          />
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Tipo de gasto
+                          </label>
+                          <select
+                            value={editingData.category}
+                            onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
+                            className="full-input"
+                          >
+                            <option value="venta">Personal</option>
+                            <option value="sociedad">Sociedad</option>
+                          </select>
+                        </div>
+
+                        {editingData.category === 'sociedad' && (
+                          <>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                                Evento (opcional)
+                              </label>
+                              <input 
+                                type="text" 
+                                placeholder="Nombre del evento"
+                                value={editingData.eventoTexto}
+                                onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
+                                className="full-input"
+                              />
+                            </div>
+
+                            <div style={{ marginBottom: 16 }}>
+                              <div 
+                                onClick={() => setShowSociosSection(!showSociosSection)}
+                                style={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  padding: '8px 12px',
+                                  background: '#f3f4f6',
+                                  borderRadius: 6,
+                                  marginBottom: showSociosSection ? 8 : 0
+                                }}
+                              >
+                                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                                  Socios participantes
+                                </label>
+                                <span style={{ fontSize: 16, color: '#6b7280' }}>
+                                  {showSociosSection ? '▼' : '▶'}
+                                </span>
+                              </div>
+                              {showSociosSection && (
+                                <div style={{ 
+                                  maxHeight: 200, 
+                                  overflowY: 'auto', 
+                                  border: '1px solid #d1d5db', 
+                                  borderRadius: 6, 
+                                padding: 12,
+                                backgroundColor: '#f9fafb'
+                              }}>
+                                {socios.map(socio => (
+                                  <div key={socio.id} style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 12, 
+                                    marginBottom: 8,
+                                    padding: 8,
+                                    backgroundColor: '#fff',
+                                    borderRadius: 6,
+                                    border: '1px solid #e5e7eb'
+                                  }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={editingData.selectedSocios?.[socio.id] || false}
+                                      onChange={(e) => {
+                                        const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
+                                        const newAttendees = { ...editingData.attendeesCount };
+                                        if (e.target.checked && !newAttendees[socio.id]) {
+                                          newAttendees[socio.id] = 1;
+                                        }
+                                        setEditingData(d => ({ 
+                                          ...d, 
+                                          selectedSocios: newSelected,
+                                          attendeesCount: newAttendees
+                                        }));
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    />
+                                    <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
+                                      {socio.alias || socio.nombre || socio.email}
+                                    </span>
+                                    {editingData.selectedSocios?.[socio.id] && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <span style={{ fontSize: 12, color: '#6b7280' }}>Asist.:</span>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={editingData.attendeesCount?.[socio.id] || 1}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            const newAttendees = { 
+                                              ...editingData.attendeesCount, 
+                                              [socio.id]: val === '' ? '' : Math.max(1, Number(val))
+                                            };
+                                            setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                          }}
+                                          onBlur={(e) => {
+                                            if (e.target.value === '' || Number(e.target.value) < 1) {
+                                              const newAttendees = { 
+                                                ...editingData.attendeesCount, 
+                                                [socio.id]: 1
+                                              };
+                                              setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                            }
+                                          }}
+                                          style={{
+                                            width: 60,
+                                            padding: '4px 8px',
+                                            fontSize: 13,
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: 4
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
+                            Productos en el ticket
+                          </label>
+                          {(editingData.productLines || []).map((pl, idx) => (
+                            <div key={idx} style={{
+                              display: 'flex', 
+                              gap: 4, 
+                              marginBottom: 8,
+                              alignItems: 'center',
+                              background: '#fff',
+                              padding: 8,
+                              borderRadius: 6,
+                              border: '1px solid #e5e7eb'
+                            }}>
+                              <input 
+                                type="text"
+                                value={pl.label || ''}
+                                onChange={(e) => updateLineEditing(idx, { label: e.target.value })}
+                                placeholder="Producto"
+                                style={{ 
+                                  flex: 1,
+                                  minWidth: 0,
+                                  padding: 6,
+                                  fontSize: 12,
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4
+                                }}
+                              />
+                              <input 
+                                type="number"
+                                value={pl.qty || 1}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
+                                }}
+                                onBlur={(e) => {
+                                  if (e.target.value === '' || Number(e.target.value) < 1) {
+                                    updateLineEditing(idx, { qty: 1 });
+                                  }
+                                }}
+                                min="1"
+                                style={{ 
+                                  width: 40,
+                                  padding: 6,
+                                  fontSize: 12,
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4,
+                                  textAlign: 'center'
+                                }}
+                              />
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input 
+                                  type="number"
+                                  value={pl.price || 0}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
+                                  }}
+                                  onBlur={(e) => {
+                                    if (e.target.value === '') {
+                                      updateLineEditing(idx, { price: 0 });
+                                    }
+                                  }}
+                                  step="0.01"
+                                  style={{ 
+                                    width: 50,
+                                    padding: 6,
+                                    paddingRight: 18,
+                                    fontSize: 12,
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 4
+                                  }}
+                                />
+                                <span style={{ position: 'absolute', right: 6, fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>€</span>
+                              </div>
+                              <button 
+                                onClick={() => removeLineFromEditing(idx)}
+                                style={{
+                                  padding: 4,
+                                  fontSize: 14,
+                                  background: '#fee2e2',
+                                  border: '1px solid #fecaca',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                  width: 32,
+                                  height: 32,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={addLineToEditing}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#fff',
+                              backgroundColor: '#6366f1',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              marginTop: 8
+                            }}
+                          >
+                            + Añadir línea manual
+                          </button>
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '2px solid #e5e7eb', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
+                            Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                          <button
+                            onClick={cancelEdit}
+                            style={{
+                              flex: 1,
+                              padding: '10px 16px',
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: '#374151',
+                              backgroundColor: '#f3f4f6',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={saveEdit}
+                            style={{
+                              flex: 1,
+                              padding: '10px 16px',
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: '#fff',
+                              backgroundColor: '#3b82f6',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Vista normal del ticket (no editando)
                   return (
                     <div key={exp.id} style={{
                       background: '#fff',
@@ -2196,7 +2552,7 @@ export default function ListadosTPV({ user, profile }) {
                             ✏️ Editar
                           </button>
                         )}
-                        {profile?.isAdmin && (
+                        {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
                           <button className="btn-ghost" onClick={() => handleDeleteTicket(exp.id)} style={{ flex: 1, fontSize: 11 }}>
                             🗑️ Eliminar
                           </button>

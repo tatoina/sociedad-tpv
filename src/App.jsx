@@ -14,7 +14,19 @@ import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.2.6";
+export const APP_VERSION = "2.2.7";
+
+// Detectar tipo de dispositivo
+const getDeviceType = () => {
+  const ua = navigator.userAgent;
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+    return "📱 Tablet";
+  }
+  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+    return "📱 Móvil";
+  }
+  return "💻 PC";
+};
 
 // Función para limpiar caché
 const clearAppCache = async () => {
@@ -657,16 +669,21 @@ export default function App() {
           )}
         </div>
         
-        {/* Versión de la aplicación */}
+        {/* Versión de la aplicación y tipo de dispositivo */}
         {user && (
           <div style={{
             fontSize: '11px',
             color: theme.text,
             opacity: 0.5,
             fontWeight: 500,
-            marginRight: '12px'
+            marginRight: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            v{APP_VERSION}
+            <span>{getDeviceType()}</span>
+            <span>•</span>
+            <span>v{APP_VERSION}</span>
           </div>
         )}
         
