@@ -241,6 +241,7 @@ export default function ListadosTPV({ user, profile }) {
             uid: socioId,
             email: socio?.email || '',
             nombre: socio?.nombre || socio?.email?.split('@')[0] || 'Socio',
+            alias: socio?.alias || socio?.nombre || socio?.email?.split('@')[0] || 'Socio',
             attendees: attendees,
             amount: socioAmount
           };
@@ -1491,7 +1492,7 @@ export default function ListadosTPV({ user, profile }) {
                       let participantesDisplay = [];
                       if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
                         participantesDisplay = exp.participantes.map(p => ({
-                          nombre: p.nombre || p.email?.split('@')[0] || 'Socio',
+                          nombre: p.alias || p.nombre || p.email?.split('@')[0] || 'Socio',
                           asistentes: p.attendees || 1
                         }));
                       }
@@ -1689,7 +1690,7 @@ export default function ListadosTPV({ user, profile }) {
                                                   style={{ cursor: 'pointer' }}
                                                 />
                                                 <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
-                                                  {socio.nombre || socio.email}
+                                                  {socio.alias || socio.nombre || socio.email}
                                                 </span>
                                                 {editingData.selectedSocios?.[socio.id] && (
                                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2037,7 +2038,7 @@ export default function ListadosTPV({ user, profile }) {
                                                   alignItems: 'center'
                                                 }}>
                                                   <span>
-                                                    • {participante.nombre || participante.email} 
+                                                    • {participante.alias || participante.nombre || participante.email} 
                                                     {participante.attendees > 1 && ` (${participante.attendees} asist.)`}
                                                   </span>
                                                   <span style={{ fontWeight: 600 }}>{participante.amount.toFixed(2)}€</span>
