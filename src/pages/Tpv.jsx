@@ -162,17 +162,7 @@ export default function TPV({ user, profile }) {
           console.log('🔍 Socios obtenidos con alias:', allSocios.map(s => ({id: s.id, name: s.name, alias: s.alias})));
           if (mounted) {
             setSocios(allSocios);
-            // Solo inicializar selección si es para nuevo ticket, no para edición
-            if (isForSociedad && !editingTicketId && allSocios.length > 0 && Object.keys(selectedSocios).length === 0) {
-              const initialSelection = {};
-              const initialAttendees = {};
-              allSocios.forEach(s => { 
-                initialSelection[s.id] = true; 
-                initialAttendees[s.id] = 1;
-              });
-              setSelectedSocios(initialSelection);
-              setAttendeesCount(initialAttendees);
-            }
+            // No inicializar selección automáticamente - el usuario debe seleccionar manualmente
           }
         } catch (err) {
           console.error("Error loading socios:", err);

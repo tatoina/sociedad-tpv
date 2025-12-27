@@ -14,7 +14,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.2.4";
+export const APP_VERSION = "2.2.5";
 
 // Función para limpiar caché
 const clearAppCache = async () => {
