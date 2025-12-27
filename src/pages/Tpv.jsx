@@ -758,7 +758,18 @@ export default function TPV({ user, profile }) {
                         type="number" 
                         min="1" 
                         value={c.qty} 
-                        onChange={(e) => updateCartLine(i, { qty: Number(e.target.value) || 1 })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Permitir vacío temporalmente mientras el usuario escribe
+                          updateCartLine(i, { qty: val === '' ? '' : Number(val) });
+                        }}
+                        onBlur={(e) => {
+                          // Al perder el foco, asegurar que sea al menos 1
+                          const val = Number(e.target.value);
+                          if (!val || val < 1) {
+                            updateCartLine(i, { qty: 1 });
+                          }
+                        }}
                         style={{width:60, padding:4, fontSize:14}}
                       />
                       <span style={{fontSize:12, color:'#666'}}>uds.</span>
