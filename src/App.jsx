@@ -14,7 +14,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.2.3";
+export const APP_VERSION = "2.2.4";
 
 // Función para limpiar caché
 const clearAppCache = async () => {
@@ -426,6 +426,30 @@ export default function App() {
                     zIndex: 1000,
                     overflow: 'hidden'
                   }}>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/menu');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      🏠 Menú Principal
+                    </button>
                     {!profile?.isAdmin && (
                     <button
                       onClick={() => {
