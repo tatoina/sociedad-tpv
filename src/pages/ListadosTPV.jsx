@@ -1491,10 +1491,14 @@ export default function ListadosTPV({ user, profile }) {
                       // Para mostrar participantes en la columna Tipo
                       let participantesDisplay = [];
                       if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
-                        participantesDisplay = exp.participantes.map(p => ({
-                          nombre: p.alias || p.nombre || p.email?.split('@')[0] || 'Socio',
-                          asistentes: p.attendees || 1
-                        }));
+                        participantesDisplay = exp.participantes.map(p => {
+                          // Buscar el socio en la lista para obtener su alias actualizado
+                          const socio = socios.find(s => s.id === p.uid || s.email === p.email);
+                          return {
+                            nombre: socio?.alias || p.alias || socio?.nombre || p.nombre || p.email?.split('@')[0] || 'Socio',
+                            asistentes: p.attendees || 1
+                          };
+                        });
                       }
 
                       return (
@@ -2028,22 +2032,26 @@ export default function ListadosTPV({ user, profile }) {
                                           {exp.participantes && exp.participantes.length > 0 && (
                                             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #fbbf24' }}>
                                               <div style={{ fontSize: 11, color: '#92400e', marginBottom: 6, fontWeight: 600 }}>👥 Lista de asistentes:</div>
-                                              {exp.participantes.map((participante, idx) => (
-                                                <div key={idx} style={{ 
-                                                  fontSize: 12, 
-                                                  color: '#78350f', 
-                                                  marginBottom: 3,
-                                                  display: 'flex',
-                                                  justifyContent: 'space-between',
-                                                  alignItems: 'center'
-                                                }}>
-                                                  <span>
-                                                    • {participante.alias || participante.nombre || participante.email} 
-                                                    {participante.attendees > 1 && ` (${participante.attendees} asist.)`}
-                                                  </span>
-                                                  <span style={{ fontWeight: 600 }}>{participante.amount.toFixed(2)}€</span>
-                                                </div>
-                                              ))}
+                                              {exp.participantes.map((participante, idx) => {
+                                                // Buscar el socio en la lista para obtener su alias actualizado
+                                                const socio = socios.find(s => s.id === participante.uid || s.email === participante.email);
+                                                return (
+                                                  <div key={idx} style={{ 
+                                                    fontSize: 12, 
+                                                    color: '#78350f', 
+                                                    marginBottom: 3,
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center'
+                                                  }}>
+                                                    <span>
+                                                      • {socio?.alias || participante.alias || socio?.nombre || participante.nombre || participante.email} 
+                                                      {participante.attendees > 1 && ` (${participante.attendees} asist.)`}
+                                                    </span>
+                                                    <span style={{ fontWeight: 600 }}>{participante.amount.toFixed(2)}€</span>
+                                                  </div>
+                                                );
+                                              })}
                                             </div>
                                           )}
                                         </div>
