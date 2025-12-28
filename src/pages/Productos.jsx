@@ -187,6 +187,11 @@ export default function Productos({ profile }) {
               step="0.01" 
               value={newRow.price} 
               onChange={(e) => setNewRow(r => ({ ...r, price: e.target.value }))} 
+              onBlur={(e) => {
+                if (e.target.value === '' || Number(e.target.value) < 0) {
+                  setNewRow(r => ({ ...r, price: '' }));
+                }
+              }}
               style={{ paddingRight: '28px' }}
             />
             <span style={{ position: 'absolute', right: 12, fontSize: 14, color: '#6b7280', pointerEvents: 'none' }}>€</span>
@@ -279,6 +284,11 @@ export default function Productos({ profile }) {
                           step="0.01" 
                           value={rowForm.price} 
                           onChange={(e) => setRowForm(r => ({ ...r, price: e.target.value }))} 
+                          onBlur={(e) => {
+                            if (e.target.value === '' || Number(e.target.value) < 0) {
+                              setRowForm(r => ({ ...r, price: '' }));
+                            }
+                          }}
                           style={{ paddingRight: '22px', width: '100px' }}
                         />
                         <span style={{ position: 'absolute', right: 8, fontSize: 13, color: '#6b7280', pointerEvents: 'none' }}>€</span>

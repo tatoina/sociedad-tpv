@@ -194,6 +194,36 @@ export default function Eventos({ user, profile }) {
         setEditingId(null);
       } else {
         await addEventRegistration(registrationData);
+        
+        // Enviar notificación por email solo para reservas de mesa
+        if (eventType === 'RESERVAR MESA') {
+          try {
+            console.log('📧 Enviando notificación de reserva de mesa...', {
+              userName: profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario',
+              userEmail: user?.email || '',
+              fecha: fecha,
+              hora: hora,
+              comensales: comensales,
+              observaciones: observaciones
+            });
+            
+            const notificarReserva = httpsCallable(functions, 'notificarReservaMesa');
+            const result = await notificarReserva({
+              userName: profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario',
+              userEmail: user?.email || '',
+              fecha: fecha,
+              hora: hora,
+              comensales: comensales,
+              observaciones: observaciones
+            });
+            
+            console.log('✅ Notificación de reserva enviada:', result.data);
+          } catch (emailError) {
+            console.error('❌ Error enviando notificación de reserva:', emailError);
+            console.error('Detalles:', emailError.message, emailError.code);
+          }
+        }
+        
         alert('Inscripción registrada correctamente');
       }
 
@@ -326,6 +356,21 @@ export default function Eventos({ user, profile }) {
     return <div style={{ padding: 20 }}>No autenticado</div>;
   }
 
+  // Estilos comunes para inputs del formulario
+  const inputStyle = {
+    width: '100%',
+    padding: '12px',
+    fontSize: 15,
+    border: '1px solid #d1d5db',
+    borderRadius: 8,
+    boxSizing: 'border-box'
+  };
+
+  const selectStyle = {
+    ...inputStyle,
+    background: '#fff'
+  };
+
   return (
     <div style={{ padding: 20, maxWidth: 800, margin: '0 auto' }}>
       <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#111827' }}>
@@ -355,14 +400,7 @@ export default function Eventos({ user, profile }) {
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
                 required
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  fontSize: 15,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  background: '#fff'
-                }}
+                style={selectStyle}
               >
                 <option value="">-- Selecciona un evento --</option>
                 {EVENT_TYPES.map(type => (
@@ -383,13 +421,7 @@ export default function Eventos({ user, profile }) {
                     value={fecha}
                     onChange={(e) => setFecha(e.target.value)}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
-                    }}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
@@ -400,13 +432,7 @@ export default function Eventos({ user, profile }) {
                     type="time"
                     value={hora}
                     onChange={(e) => setHora(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
-                    }}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
@@ -419,11 +445,7 @@ export default function Eventos({ user, profile }) {
                     placeholder="Indica cualquier preferencia o comentario..."
                     rows={3}
                     style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
+                      ...inputStyle,
                       fontFamily: 'inherit',
                       resize: 'vertical'
                     }}
@@ -438,14 +460,13 @@ export default function Eventos({ user, profile }) {
                     min="1"
                     value={comensales}
                     onChange={(e) => setComensales(e.target.value)}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
+                    onBlur={(e) => {
+                      if (e.target.value === '' || Number(e.target.value) < 1) {
+                        setComensales('');
+                      }
                     }}
+                    required
+                    style={inputStyle}
                   />
                 </div>
               </>
@@ -491,14 +512,13 @@ export default function Eventos({ user, profile }) {
                       min="0"
                       value={adultos}
                       onChange={(e) => setAdultos(e.target.value)}
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: 15,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8
+                      onBlur={(e) => {
+                        if (e.target.value === '' || Number(e.target.value) < 0) {
+                          setAdultos('');
+                        }
                       }}
+                      required
+                      style={inputStyle}
                     />
                   </div>
                   <div>
@@ -510,13 +530,12 @@ export default function Eventos({ user, profile }) {
                       min="0"
                       value={ninos}
                       onChange={(e) => setNinos(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: 15,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8
+                      onBlur={(e) => {
+                        if (e.target.value === '' || Number(e.target.value) < 0) {
+                          setNinos('');
+                        }
                       }}
+                      style={inputStyle}
                     />
                   </div>
                 </div>
@@ -541,7 +560,8 @@ export default function Eventos({ user, profile }) {
                         padding: '12px',
                         fontSize: 15,
                         border: '1px solid #d1d5db',
-                        borderRadius: 8
+                        borderRadius: 8,
+                        boxSizing: 'border-box'
                       }}
                     />
                     {fecha && (
@@ -570,13 +590,12 @@ export default function Eventos({ user, profile }) {
                       min="0"
                       value={adultos}
                       onChange={(e) => setAdultos(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: 15,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8
+                      onBlur={(e) => {
+                        if (e.target.value === '' || Number(e.target.value) < 0) {
+                          setAdultos('');
+                        }
                       }}
+                      style={inputStyle}
                     />
                   </div>
                   <div>
@@ -588,13 +607,7 @@ export default function Eventos({ user, profile }) {
                       min="0"
                       value={ninos}
                       onChange={(e) => setNinos(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: 15,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8
-                      }}
+                      style={inputStyle}
                     />
                   </div>
                 </div>
@@ -613,6 +626,11 @@ export default function Eventos({ user, profile }) {
                     min="0"
                     value={adultos}
                     onChange={(e) => setAdultos(e.target.value)}
+                    onBlur={(e) => {
+                      if (e.target.value === '' || Number(e.target.value) < 0) {
+                        setAdultos('');
+                      }
+                    }}
                     style={{
                       width: '100%',
                       padding: '12px',
@@ -631,13 +649,12 @@ export default function Eventos({ user, profile }) {
                     min="0"
                     value={ninos}
                     onChange={(e) => setNinos(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
+                    onBlur={(e) => {
+                      if (e.target.value === '' || Number(e.target.value) < 0) {
+                        setNinos('');
+                      }
                     }}
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -654,14 +671,13 @@ export default function Eventos({ user, profile }) {
                   min="1"
                   value={decimos}
                   onChange={(e) => setDecimos(e.target.value)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    fontSize: 15,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8
+                  onBlur={(e) => {
+                    if (e.target.value === '' || Number(e.target.value) < 1) {
+                      setDecimos('');
+                    }
                   }}
+                  required
+                  style={inputStyle}
                 />
               </div>
             )}
@@ -678,13 +694,12 @@ export default function Eventos({ user, profile }) {
                     min="0"
                     value={adultos}
                     onChange={(e) => setAdultos(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
+                    onBlur={(e) => {
+                      if (e.target.value === '' || Number(e.target.value) < 0) {
+                        setAdultos('');
+                      }
                     }}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
@@ -696,13 +711,12 @@ export default function Eventos({ user, profile }) {
                     min="0"
                     value={ninos}
                     onChange={(e) => setNinos(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
+                    onBlur={(e) => {
+                      if (e.target.value === '' || Number(e.target.value) < 0) {
+                        setNinos('');
+                      }
                     }}
+                    style={inputStyle}
                   />
                 </div>
               </div>

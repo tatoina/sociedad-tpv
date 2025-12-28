@@ -9,12 +9,13 @@ import Productos from "./pages/Productos";
 import Socios from "./pages/Socios";
 import Perfil from "./pages/Perfil";
 import Eventos from "./pages/Eventos";
-import { auth, fetchUserDoc, logout, uploadUserPhoto } from "./firebase";
+import { auth, fetchUserDoc, logout, uploadUserPhoto, functions } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.2.7";
+export const APP_VERSION = "2.5.4";
 
 // Detectar tipo de dispositivo
 const getDeviceType = () => {
@@ -172,22 +173,24 @@ export default function App() {
     
     setSendingSuggestion(true);
     try {
-      const userName = profile?.name || user?.email || 'Usuario anónimo';
+      const userName = `${profile?.name || ''} ${profile?.surname || ''}`.trim() || user?.email || 'Usuario anónimo';
       const userEmail = user?.email || 'sin email';
-      const subject = `Sugerencia TPV App - ${userName}`;
-      const body = `Usuario: ${userName}\nEmail: ${userEmail}\n\nSugerencia:\n${suggestionText}`;
       
-      // Crear mailto link
-      const mailtoLink = `mailto:inavicba@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.location.href = mailtoLink;
+      // Llamar a la Cloud Function
+      const enviarSugerencia = httpsCallable(functions, 'enviarSugerencia');
+      const result = await enviarSugerencia({
+        userName,
+        userEmail,
+        suggestionText
+      });
       
       // Cerrar modal y limpiar
       setShowSuggestionModal(false);
       setSuggestionText('');
-      alert('Se abrirá tu cliente de correo para enviar la sugerencia');
+      alert('✅ Tu sugerencia ha sido enviada correctamente. ¡Gracias por tu aporte!');
     } catch (err) {
       console.error('Error al enviar sugerencia:', err);
-      alert('Error al abrir el cliente de correo');
+      alert('❌ Error al enviar la sugerencia. Por favor, inténtalo de nuevo.');
     } finally {
       setSendingSuggestion(false);
     }
@@ -438,6 +441,7 @@ export default function App() {
                     zIndex: 1000,
                     overflow: 'hidden'
                   }}>
+                    {/* 1. Menú Principal */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -462,58 +466,64 @@ export default function App() {
                     >
                       🏠 Menú Principal
                     </button>
+
+                    {/* 2. TPV (solo para no-admin) */}
                     {!profile?.isAdmin && (
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        nav('/tpv');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      🛒 TPV
-                    </button>
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          nav('/tpv');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: theme.text,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          borderBottom: `1px solid ${theme.primary}20`
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        🛒 TPV
+                      </button>
                     )}
+
+                    {/* 3. Eventos (solo para no-admin) */}
                     {!profile?.isAdmin && (
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        nav('/eventos');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          nav('/eventos');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: theme.text,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          borderBottom: `1px solid ${theme.primary}20`
+                        }}
                         onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         📅 Eventos
                       </button>
                     )}
+
+                    {/* 4. Listados TPV */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -538,55 +548,8 @@ export default function App() {
                     >
                       {profile?.isAdmin ? '📊 Listados TPV' : '📊 Mis Gastos'}
                     </button>
-                    <button
-                      onClick={() => {
-                        document.getElementById('camera-input').click();
-                        setShowUserMenu(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      📸 Cambiar foto de perfil
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        alert('Se enviará un correo para cambiar la contraseña');
-                        // TODO: Implementar solicitud de cambio de contraseña
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      🔑 Cambiar contraseña
-                    </button>
+
+                    {/* 5. Cambiar perfil (incluye foto, contraseña y todos los datos) */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -609,8 +572,10 @@ export default function App() {
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      👤 Ver perfil
+                      👤 Cambiar perfil
                     </button>
+
+                    {/* 6. Sugerencias app */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -633,8 +598,10 @@ export default function App() {
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      💡 Sugerencias para la app
+                      💡 Sugerencias app
                     </button>
+
+                    {/* 7. Cerrar sesión */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);

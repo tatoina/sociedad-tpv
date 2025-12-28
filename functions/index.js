@@ -204,6 +204,190 @@ exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
   }
 });
 
+// Función para notificar a todos cuando alguien se inscribe a un evento
+exports.notificarInscripcionEvento = functions.https.onCall(async (data, context) => {
+  console.log('🔔 notificarInscripcionEvento iniciada');
+  console.log('Data recibida:', data);
+  console.log('Context auth:', context.auth ? 'Usuario autenticado' : 'Usuario NO autenticado');
+  
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    console.error('❌ Usuario no autenticado');
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { eventType, userName, userEmail } = data;
+
+  if (!eventType || !userName) {
+    console.error('❌ Faltan parámetros:', { eventType, userName });
+    throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos');
+  }
+
+  try {
+    console.log(`📧 Preparando notificación para evento: ${eventType}, usuario: ${userName}`);
+    
+    // Obtener todos los usuarios
+    const usersSnapshot = await admin.firestore().collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filtrar usuarios que tengan email y excluir admin@admin.es
+    const usersWithEmail = users.filter(user => user.email && user.email !== 'admin@admin.es');
+
+    console.log(`✅ Encontrados ${usersWithEmail.length} usuarios con email`);
+
+    // Configurar transporter
+    const transporter = getEmailTransporter();
+    
+    if (!transporter) {
+      console.error('❌ No se pudo configurar el transporter de email');
+      throw new functions.https.HttpsError('failed-precondition', 'Configuración de email no disponible');
+    }
+
+    console.log('✅ Transporter configurado correctamente');
+
+    // Preparar email
+    const emailPromises = usersWithEmail.map(async (user) => {
+      const mailOptions = {
+        from: functions.config().gmail.email,
+        to: user.email,
+        subject: `📝 Nueva inscripción: ${eventType}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f9f9f9;
+              }
+              .header {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 30px 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+              }
+              .content {
+                background: white;
+                padding: 30px;
+                border-radius: 0 0 8px 8px;
+              }
+              .event-box {
+                background: #d1fae5;
+                border: 2px solid #10b981;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+              }
+              .event-box .icon {
+                font-size: 48px;
+                margin-bottom: 10px;
+              }
+              .event-box .title {
+                font-size: 20px;
+                font-weight: 700;
+                color: #065f46;
+                margin-bottom: 15px;
+              }
+              .event-box .user {
+                font-size: 18px;
+                font-weight: 600;
+                color: #047857;
+              }
+              .button {
+                display: inline-block;
+                padding: 15px 30px;
+                background: #10b981;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                margin-top: 20px;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 12px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">🎉 Sociedad TPV</h1>
+                <p style="margin: 10px 0 0 0;">Nueva inscripción a evento</p>
+              </div>
+              <div class="content">
+                <p>Hola <strong>${user.name || user.email}</strong>,</p>
+                
+                <div class="event-box">
+                  <div class="icon">✓</div>
+                  <div class="title">Mesa reservada</div>
+                  <div class="user">Inscrito a: ${eventType}</div>
+                  <div style="margin-top: 15px; color: #047857;">
+                    Por: <strong>${userName}</strong>
+                  </div>
+                </div>
+                
+                <p>Puedes ver todos los detalles y gestionar tus inscripciones accediendo a la aplicación.</p>
+                
+                <div style="text-align: center;">
+                  <a href="https://sociedad-tpv.web.app" class="button">
+                    Ir a la aplicación
+                  </a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>Este es un email automático, por favor no respondas a este mensaje.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Email enviado a ${user.email}`);
+        return { success: true, email: user.email };
+      } catch (error) {
+        console.error(`Error enviando email a ${user.email}:`, error);
+        return { success: false, email: user.email, error: error.message };
+      }
+    });
+
+    const results = await Promise.allSettled(emailPromises);
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.length - successful;
+
+    console.log(`📊 Resultado: ${successful} exitosos, ${failed} fallidos`);
+
+    return {
+      success: true,
+      message: `Emails enviados: ${successful} exitosos, ${failed} fallidos`,
+      successful,
+      failed
+    };
+
+  } catch (error) {
+    console.error('❌ Error en notificarInscripcionEvento:', error);
+    console.error('Stack trace:', error.stack);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
 // Función programada para generar automáticamente el resumen mensual el día 1 de cada mes
 exports.generarResumenMensualAutomatico = functions.pubsub
   .schedule('1 0 1 * *') // Se ejecuta el día 1 de cada mes a las 00:01
@@ -549,3 +733,320 @@ exports.generarResumenMensualAutomatico = functions.pubsub
       throw error;
     }
   });
+
+// Función para enviar sugerencias por email
+exports.enviarSugerencia = functions.https.onCall(async (data, context) => {
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { userName, userEmail, suggestionText } = data;
+
+  if (!suggestionText || !suggestionText.trim()) {
+    throw new functions.https.HttpsError('invalid-argument', 'La sugerencia no puede estar vacía');
+  }
+
+  try {
+    const transporter = getEmailTransporter();
+    
+    if (!transporter) {
+      throw new functions.https.HttpsError('failed-precondition', 'Configuración de email no disponible');
+    }
+
+    const mailOptions = {
+      from: functions.config().gmail.email,
+      to: 'inaviciba@gmail.com',
+      replyTo: userEmail || functions.config().gmail.email,
+      subject: `💡 Sugerencia TPV App - ${userName || 'Usuario'}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #f9f9f9;
+            }
+            .header {
+              background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+              color: white;
+              padding: 30px 20px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .content {
+              background-color: white;
+              padding: 30px;
+              border-radius: 0 0 10px 10px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .info-box {
+              background-color: #e3f2fd;
+              border-left: 4px solid #1976d2;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .suggestion-box {
+              background-color: #f5f5f5;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+              border: 1px solid #e0e0e0;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0; font-size: 28px;">💡 Nueva Sugerencia</h1>
+              <p style="margin: 10px 0 0 0; opacity: 0.9;">TPV App - Sociedad</p>
+            </div>
+            <div class="content">
+              <h2 style="color: #1976d2; margin-top: 0;">Información del Usuario</h2>
+              <div class="info-box">
+                <p style="margin: 5px 0;"><strong>Nombre:</strong> ${userName || 'No proporcionado'}</p>
+                <p style="margin: 5px 0;"><strong>Email:</strong> ${userEmail || 'No proporcionado'}</p>
+                <p style="margin: 5px 0;"><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { 
+                  dateStyle: 'full', 
+                  timeStyle: 'short' 
+                })}</p>
+              </div>
+              
+              <h2 style="color: #1976d2;">Sugerencia</h2>
+              <div class="suggestion-box">
+                <p style="margin: 0; white-space: pre-wrap; font-size: 15px; line-height: 1.6;">${suggestionText}</p>
+              </div>
+              
+              <div class="footer">
+                <p>Este email fue generado automáticamente por TPV App</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Sugerencia enviada de ${userName} (${userEmail})`);
+
+    return { 
+      success: true, 
+      message: 'Sugerencia enviada correctamente' 
+    };
+
+  } catch (error) {
+    console.error('Error enviando sugerencia:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+// Función para notificar reserva de mesa
+exports.notificarReservaMesa = functions.https.onCall(async (data, context) => {
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { userName, userEmail, fecha, hora, comensales, observaciones } = data;
+
+  if (!userName) {
+    throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos');
+  }
+
+  try {
+    // Obtener todos los usuarios
+    const usersSnapshot = await admin.firestore().collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filtrar usuarios que tengan email y excluir admin@admin.es
+    const usersWithEmail = users.filter(user => user.email && user.email !== 'admin@admin.es');
+
+    console.log(`Enviando emails a ${usersWithEmail.length} usuarios sobre reserva de ${userName}`);
+
+    const transporter = getEmailTransporter();
+    
+    if (!transporter) {
+      throw new functions.https.HttpsError('failed-precondition', 'Configuración de email no disponible');
+    }
+
+    // Formatear fecha
+    let fechaFormateada = fecha;
+    if (fecha && fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const date = new Date(fecha + 'T00:00:00');
+      const dia = date.getDate();
+      const mes = date.getMonth() + 1;
+      const año = date.getFullYear();
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const diaSemana = dias[date.getDay()];
+      fechaFormateada = `${diaSemana} ${dia}/${mes}/${año}`;
+    }
+
+    // Preparar emails
+    const emailPromises = usersWithEmail.map(async (user) => {
+      const mailOptions = {
+        from: functions.config().gmail.email,
+        to: user.email,
+        subject: `🍽️ Nueva Reserva de Mesa - ${userName}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f9f9f9;
+              }
+              .header {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 30px 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+              }
+              .content {
+                background: white;
+                padding: 30px;
+                border-radius: 0 0 8px 8px;
+              }
+              .reservation-box {
+                background: #d1fae5;
+                border: 2px solid #10b981;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+              }
+              .detail-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .detail-label {
+                font-weight: 600;
+                color: #374151;
+              }
+              .detail-value {
+                color: #059669;
+                font-weight: 500;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 12px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">🍽️ Sociedad TPV</h1>
+                <p style="margin: 10px 0 0 0;">Nueva Reserva de Mesa</p>
+              </div>
+              <div class="content">
+                <div class="reservation-box">
+                  <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
+                  <div style="font-size: 20px; font-weight: 700; color: #065f46;">Mesa Reservada</div>
+                  <div style="margin-top: 15px; font-size: 18px; font-weight: 600; color: #047857;">
+                    ${userName}
+                  </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                  ${fecha ? `
+                    <div class="detail-row">
+                      <span class="detail-label">📅 Fecha:</span>
+                      <span class="detail-value">${fechaFormateada}</span>
+                    </div>
+                  ` : ''}
+                  ${hora ? `
+                    <div class="detail-row">
+                      <span class="detail-label">🕐 Hora:</span>
+                      <span class="detail-value">${hora}</span>
+                    </div>
+                  ` : ''}
+                  ${comensales ? `
+                    <div class="detail-row">
+                      <span class="detail-label">👥 Comensales:</span>
+                      <span class="detail-value">${comensales}</span>
+                    </div>
+                  ` : ''}
+                  ${observaciones ? `
+                    <div style="margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+                      <div class="detail-label" style="margin-bottom: 8px;">📝 Observaciones:</div>
+                      <div style="color: #374151;">${observaciones}</div>
+                    </div>
+                  ` : ''}
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="https://sociedad-tpv.web.app" style="display: inline-block; padding: 15px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                    Ver en la Aplicación
+                  </a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>Este es un email automático, por favor no respondas a este mensaje.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Email enviado a ${user.email}`);
+        return { success: true, email: user.email };
+      } catch (error) {
+        console.error(`Error enviando email a ${user.email}:`, error);
+        return { success: false, email: user.email, error: error.message };
+      }
+    });
+
+    const results = await Promise.allSettled(emailPromises);
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.length - successful;
+
+    console.log(`Emails enviados: ${successful} exitosos, ${failed} fallidos`);
+
+    return {
+      success: true,
+      message: `Emails enviados: ${successful} exitosos, ${failed} fallidos`,
+      successful,
+      failed
+    };
+
+  } catch (error) {
+    console.error('Error en notificarReservaMesa:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+

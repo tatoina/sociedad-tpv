@@ -1370,1203 +1370,13 @@ export default function ListadosTPV({ user, profile }) {
         </div>
       )}
 
-      {/* Lista de tickets - Colapsable */}
-      <div style={{
-        background: '#fff',
-        padding: 24,
-        borderRadius: 16,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#111827' }}>
-            📝 Histórico de Tickets
-          </h3>
-          <button
-            onClick={() => setShowTickets(!showTickets)}
-            style={{
-              padding: '8px 16px',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              backgroundColor: '#3b82f6',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer'
-            }}
-          >
-            {showTickets ? '▼ Ocultar' : '▶ Mostrar'}
-          </button>
-        </div>
-
-        {showTickets && (
-          <div>
-            {/* Búsqueda de tickets */}
-            <div style={{ marginBottom: 20 }}>
-              <input
-                type="text"
-                placeholder="Buscar por fecha o producto..."
-                value={searchTicket}
-                onChange={(e) => setSearchTicket(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  fontSize: 14,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-                Cargando...
-              </div>
-            ) : filteredExpenses.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-                No hay tickets para mostrar
-              </div>
-            ) : (
-              <>
-              <div className="tpv-history-table" style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
-                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
-                        #
-                      </th>
-                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
-                        Fecha / Hora
-                      </th>
-                      {profile?.isAdmin && (
-                        <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
-                          Usuario
-                        </th>
-                      )}
-                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                        Productos
-                      </th>
-                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
-                        Tipo
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
-                        Total
-                      </th>
-                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredExpenses.map((exp, index) => {
-                      const lines = exp.productLines || [];
-                      // Para tickets de sociedad con participantes, calcular la parte del usuario actual
-                      let total = 0;
-                      let myPart = 0;
-                      
-                      if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
-                        // Nuevo sistema: ticket único con participantes
-                        total = Number(exp.totalGeneral || exp.amount || 0);
-                        const myParticipacion = exp.participantes.find(p => p.uid === user?.uid);
-                        myPart = myParticipacion ? Number(myParticipacion.amount || 0) : 0;
-                      } else if (exp.category === 'sociedad') {
-                        // Sistema antiguo: múltiples tickets
-                        total = Number(exp.amount || 0);
-                        myPart = total;
-                      } else {
-                        // Ticket personal
-                        total = lines.reduce((sum, line) => {
-                          const qty = Number(line.qty || 1);
-                          const price = Number(line.price || 0);
-                          return sum + (qty * price);
-                        }, 0);
-                        myPart = total;
-                      }
-
-                      const expDate = exp.date?.toDate ? exp.date.toDate() : new Date(exp.date);
-                      const fechaStr = expDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                      const horaStr = expDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                      const isExpanded = expandedTickets.has(exp.id);
-                      
-                      // Para mostrar participantes en la columna Tipo
-                      let participantesDisplay = [];
-                      if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
-                        participantesDisplay = exp.participantes.map(p => {
-                          // Buscar el socio en la lista para obtener su alias actualizado
-                          const socio = socios.find(s => s.id === p.uid || s.email === p.email);
-                          return {
-                            nombre: socio?.alias || p.alias || socio?.nombre || p.nombre || p.email?.split('@')[0] || 'Socio',
-                            asistentes: p.attendees || 1
-                          };
-                        });
-                      }
-
-                      return (
-                        <React.Fragment key={exp.id}>
-                          <tr 
-                            style={{ 
-                              borderBottom: '1px solid #e5e7eb', 
-                              backgroundColor: index % 2 === 0 ? '#fff' : '#f9fafb',
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => toggleExpandTicket(exp.id)}
-                          >
-                            <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#6b7280' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontSize: 16 }}>{isExpanded ? '▼' : '▶'}</span>
-                                #{index + 1}
-                              </div>
-                            </td>
-                            <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                              <div style={{ fontWeight: 500 }}>{fechaStr}</div>
-                              <div style={{ fontSize: 12, color: '#6b7280' }}>{horaStr}</div>
-                            </td>
-                            {profile?.isAdmin && (
-                              <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>
-                                {exp.userEmail || '-'}
-                              </td>
-                            )}
-                            <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>
-                              {lines.length} producto{lines.length !== 1 ? 's' : ''}
-                            </td>
-                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                              {exp.category === 'sociedad' ? (
-                                <span style={{
-                                  display: 'inline-block',
-                                  padding: '4px 8px',
-                                  borderRadius: 12,
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  backgroundColor: '#fff3cd',
-                                  color: '#856404',
-                                  border: '1px solid #ffc107',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  🏛️ Sociedad
-                                  {participantesDisplay.length > 0 && (
-                                    <div style={{ fontSize: 10, marginTop: 4 }}>
-                                      {participantesDisplay.map((p, i) => (
-                                        <div key={i}>{p.nombre} ({p.asistentes})</div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </span>
-                              ) : (
-                                <span style={{
-                                  display: 'inline-block',
-                                  padding: '4px 8px',
-                                  borderRadius: 12,
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  backgroundColor: '#e0e7ff',
-                                  color: '#3730a3',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  Personal
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                              {profile?.isAdmin ? total.toFixed(2) : myPart.toFixed(2)}€
-                            </td>
-                            <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                              <div style={{display:'flex', gap:8, justifyContent:'center'}}>
-                                {/* Mostrar botón editar si es admin o si el ticket es del usuario */}
-                                {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
-                                  <button 
-                                    className="btn-small" 
-                                    onClick={() => {
-                                      console.log('BOTÓN EDITAR CLICKEADO - Versión 2.1.2');
-                                      if (editingTicketId === exp.id) {
-                                        cancelEdit();
-                                      } else {
-                                        startEditTicket(exp);
-                                      }
-                                    }}
-                                    style={{ minWidth: '40px' }}
-                                  >
-                                    {editingTicketId === exp.id ? '✖️' : '✏️'}
-                                  </button>
-                                )}
-                                {/* Botón eliminar para admin o si el ticket es del usuario */}
-                                {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
-                                  <button 
-                                    className="btn-ghost" 
-                                    onClick={() => handleDeleteTicket(exp.id)}
-                                  >
-                                    🗑️
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                          
-                          {/* Fila expandida con detalles */}
-                          {isExpanded && (
-                            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
-                              <td colSpan={profile?.isAdmin ? 7 : 6} style={{ padding: '20px 16px' }}>
-                                {editingTicketId === exp.id && editingData ? (
-                                  /* Vista de edición */
-                                  <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, border: '2px solid #3b82f6', maxWidth: '100%', overflow: 'hidden' }}>
-                                    <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
-                                      ✏️ Editando ticket
-                                    </h4>
-                                    
-                                    <div style={{ marginBottom: 16 }}>
-                                      <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                                        Fecha y hora
-                                      </label>
-                                      <input 
-                                        type="datetime-local" 
-                                        value={editingData.dateInput}
-                                        onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))}
-                                        className="full-input"
-                                      />
-                                    </div>
-
-                                    <div style={{ marginBottom: 16 }}>
-                                      <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                                        Tipo de gasto
-                                      </label>
-                                      <select
-                                        value={editingData.category}
-                                        onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
-                                        className="full-input"
-                                      >
-                                        <option value="venta">Personal</option>
-                                        <option value="sociedad">Sociedad</option>
-                                      </select>
-                                    </div>
-
-                                    {editingData.category === 'sociedad' && (
-                                      <>
-                                        <div style={{ marginBottom: 16 }}>
-                                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                                            Evento (opcional)
-                                          </label>
-                                          <input 
-                                            type="text" 
-                                            placeholder="Nombre del evento"
-                                            value={editingData.eventoTexto}
-                                            onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
-                                            className="full-input"
-                                          />
-                                        </div>
-
-                                        <div style={{ marginBottom: 16 }}>
-                                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>
-                                            Socios participantes
-                                          </label>
-                                          <div style={{ 
-                                            maxHeight: 200, 
-                                            overflowY: 'auto', 
-                                            border: '1px solid #d1d5db', 
-                                            borderRadius: 6, 
-                                            padding: 12,
-                                            backgroundColor: '#f9fafb'
-                                          }}>
-                                            {socios.map(socio => (
-                                              <div key={socio.id} style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                gap: 12, 
-                                                marginBottom: 8,
-                                                padding: 8,
-                                                backgroundColor: '#fff',
-                                                borderRadius: 6,
-                                                border: '1px solid #e5e7eb'
-                                              }}>
-                                                <input
-                                                  type="checkbox"
-                                                  checked={editingData.selectedSocios?.[socio.id] || false}
-                                                  onChange={(e) => {
-                                                    const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
-                                                    const newAttendees = { ...editingData.attendeesCount };
-                                                    if (e.target.checked && !newAttendees[socio.id]) {
-                                                      newAttendees[socio.id] = 1;
-                                                    }
-                                                    setEditingData(d => ({ 
-                                                      ...d, 
-                                                      selectedSocios: newSelected,
-                                                      attendeesCount: newAttendees
-                                                    }));
-                                                  }}
-                                                  style={{ cursor: 'pointer' }}
-                                                />
-                                                <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
-                                                  {socio.alias || socio.nombre || socio.email}
-                                                </span>
-                                                {editingData.selectedSocios?.[socio.id] && (
-                                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <span style={{ fontSize: 12, color: '#6b7280' }}>Asist.:</span>
-                                                    <input
-                                                      type="number"
-                                                      min="1"
-                                                      value={editingData.attendeesCount?.[socio.id] || 1}
-                                                      onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        const newAttendees = { 
-                                                          ...editingData.attendeesCount, 
-                                                          [socio.id]: val === '' ? '' : Math.max(1, Number(val))
-                                                        };
-                                                        setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
-                                                      }}
-                                                      onBlur={(e) => {
-                                                        if (e.target.value === '' || Number(e.target.value) < 1) {
-                                                          const newAttendees = { 
-                                                            ...editingData.attendeesCount, 
-                                                            [socio.id]: 1
-                                                          };
-                                                          setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
-                                                        }
-                                                      }}
-                                                      style={{
-                                                        width: 60,
-                                                        padding: '4px 8px',
-                                                        fontSize: 13,
-                                                        border: '1px solid #d1d5db',
-                                                        borderRadius: 4
-                                                      }}
-                                                    />
-                                                  </div>
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </>
-                                    )}
-
-                                    <div style={{ marginBottom: 16 }}>
-                                      <div style={{ marginBottom: 12 }}>
-                                        <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
-                                          Añadir productos
-                                        </label>
-                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                                          <select
-                                            value={selectedCategory}
-                                            onChange={(e) => {
-                                              setSelectedCategory(e.target.value);
-                                              setSelectedProduct('');
-                                            }}
-                                            style={{
-                                              minWidth: 150,
-                                              maxWidth: '100%',
-                                              flex: '1 1 auto',
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              backgroundColor: '#fff',
-                                              cursor: 'pointer',
-                                              boxSizing: 'border-box'
-                                            }}
-                                          >
-                                            <option value="">Seleccionar categoría...</option>
-                                            {(() => {
-                                              const categoriesSet = new Set();
-                                              products.forEach(p => {
-                                                const cat = p.category || 'Sin categoría';
-                                                categoriesSet.add(cat);
-                                              });
-                                              return Array.from(categoriesSet)
-                                                .sort((a, b) => a.localeCompare(b))
-                                                .map(cat => (
-                                                  <option key={cat} value={cat}>{cat}</option>
-                                                ));
-                                            })()}
-                                          </select>
-                                          <select
-                                            value={selectedProduct}
-                                            onChange={(e) => setSelectedProduct(e.target.value)}
-                                            disabled={!selectedCategory}
-                                            style={{
-                                              minWidth: 180,
-                                              maxWidth: '100%',
-                                              flex: '2 1 auto',
-                                              padding: '8px 12px',
-                                              fontSize: 14,
-                                              border: '1px solid #d1d5db',
-                                              borderRadius: 6,
-                                              backgroundColor: !selectedCategory ? '#f3f4f6' : '#fff',
-                                              cursor: !selectedCategory ? 'not-allowed' : 'pointer',
-                                              boxSizing: 'border-box'
-                                            }}
-                                          >
-                                            <option value="">Seleccionar producto...</option>
-                                            {selectedCategory && products
-                                              .filter(p => (p.category || 'Sin categoría') === selectedCategory)
-                                              .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
-                                              .map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                  {p.label || 'Sin nombre'} - {Number(p.price || 0).toFixed(2)}€
-                                                </option>
-                                              ))
-                                            }
-                                          </select>
-                                          <button
-                                            onClick={() => {
-                                              if (selectedProduct) {
-                                                const prod = products.find(p => p.id === selectedProduct);
-                                                if (prod) {
-                                                  const newLines = [...(editingData.productLines || []), {
-                                                    label: prod.label,
-                                                    price: Number(prod.price || 0),
-                                                    qty: 1,
-                                                    productId: prod.id
-                                                  }];
-                                                  setEditingData({ ...editingData, productLines: newLines });
-                                                  setSelectedProduct('');
-                                                }
-                                              }
-                                            }}
-                                            disabled={!selectedProduct}
-                                            style={{
-                                              padding: '8px 16px',
-                                              fontSize: 13,
-                                              fontWeight: 600,
-                                              color: '#fff',
-                                              backgroundColor: !selectedProduct ? '#9ca3af' : '#10b981',
-                                              border: 'none',
-                                              borderRadius: 6,
-                                              cursor: !selectedProduct ? 'not-allowed' : 'pointer',
-                                              whiteSpace: 'nowrap',
-                                              flexShrink: 0
-                                            }}
-                                          >
-                                            + Añadir
-                                          </button>
-                                          <button
-                                            onClick={addLineToEditing}
-                                            style={{
-                                              padding: '8px 16px',
-                                              fontSize: 13,
-                                              fontWeight: 600,
-                                              color: '#fff',
-                                              backgroundColor: '#6366f1',
-                                              border: 'none',
-                                              borderRadius: 6,
-                                              cursor: 'pointer',
-                                              whiteSpace: 'nowrap',
-                                              flexShrink: 0
-                                            }}
-                                          >
-                                            + Manual
-                                          </button>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
-                                          Productos en el ticket
-                                        </label>
-                                      </div>
-                                      {(editingData.productLines || []).map((pl, idx) => (
-                                        <div key={idx} style={{display:'flex', gap:4, alignItems:'center', marginBottom:8}}>
-                                          <input 
-                                            className="small-input" 
-                                            placeholder="Producto" 
-                                            value={pl.label} 
-                                            onChange={(e) => updateLineEditing(idx, { label: e.target.value })} 
-                                            style={{ flex: 1, minWidth: 0, fontSize: 13 }}
-                                          />
-                                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                                            <input 
-                                              className="small-input" 
-                                              type="number" 
-                                              step="0.01" 
-                                              placeholder="€"
-                                              value={pl.price} 
-                                              onChange={(e) => {
-                                                const val = e.target.value;
-                                                updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
-                                              }}
-                                              onBlur={(e) => {
-                                                if (e.target.value === '') {
-                                                  updateLineEditing(idx, { price: 0 });
-                                                }
-                                              }}
-                                              style={{width: 60, paddingRight: 18, flexShrink: 0, fontSize: 13}}
-                                            />
-                                            <span style={{ position: 'absolute', right: 6, fontSize: 12, color: '#6b7280', pointerEvents: 'none' }}>€</span>
-                                          </div>
-                                          <input 
-                                            className="small-input" 
-                                            type="number" 
-                                            placeholder="Qty"
-                                            value={pl.qty} 
-                                            min="1" 
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
-                                            }}
-                                            onBlur={(e) => {
-                                              if (e.target.value === '' || Number(e.target.value) < 1) {
-                                                updateLineEditing(idx, { qty: 1 });
-                                              }
-                                            }}
-                                            style={{width: 42, flexShrink: 0, fontSize: 13}}
-                                          />
-                                          <button 
-                                            onClick={() => removeLineFromEditing(idx)}
-                                            style={{
-                                              padding: '6px 8px',
-                                              fontSize: 16,
-                                              fontWeight: 600,
-                                              color: '#fff',
-                                              backgroundColor: '#ef4444',
-                                              border: 'none',
-                                              borderRadius: 6,
-                                              cursor: 'pointer',
-                                              flexShrink: 0,
-                                              minWidth: 34,
-                                              lineHeight: 1
-                                            }}
-                                          >
-                                            🗑️
-                                          </button>
-                                        </div>
-                                      ))}
-                                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '2px solid #e5e7eb', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
-                                        Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
-                                      </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                                      <button
-                                        onClick={cancelEdit}
-                                        style={{
-                                          padding: '10px 20px',
-                                          fontSize: 14,
-                                          fontWeight: 600,
-                                          color: '#374151',
-                                          backgroundColor: '#f3f4f6',
-                                          border: 'none',
-                                          borderRadius: 8,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        Cancelar
-                                      </button>
-                                      <button
-                                        onClick={saveEdit}
-                                        style={{
-                                          padding: '10px 20px',
-                                          fontSize: 14,
-                                          fontWeight: 600,
-                                          color: '#fff',
-                                          backgroundColor: '#3b82f6',
-                                          border: 'none',
-                                          borderRadius: 8,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        Guardar cambios
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  /* Vista normal de detalles */
-                                <div style={{ 
-                                  display: 'grid', 
-                                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                                  gap: 20
-                                }}>
-                                  {/* Columna de productos */}
-                                  <div>
-                                    <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                                      📦 Productos
-                                    </h4>
-                                    <div style={{ 
-                                      backgroundColor: '#fff',
-                                      borderRadius: 8,
-                                      padding: 12,
-                                      border: '1px solid #e5e7eb'
-                                    }}>
-                                      {lines.map((line, idx) => (
-                                        <div key={idx} style={{ 
-                                          padding: '8px 0',
-                                          borderBottom: idx < lines.length - 1 ? '1px solid #f3f4f6' : 'none',
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          alignItems: 'center'
-                                        }}>
-                                          <div>
-                                            <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                              {line.label}
-                                            </div>
-                                            <div style={{ fontSize: 12, color: '#6b7280' }}>
-                                              {line.qty} × {Number(line.price || 0).toFixed(2)}€
-                                            </div>
-                                          </div>
-                                          <div style={{ fontSize: 14, fontWeight: 600, color: '#059669' }}>
-                                            {(Number(line.qty || 1) * Number(line.price || 0)).toFixed(2)}€
-                                          </div>
-                                        </div>
-                                      ))}
-                                      <div style={{ 
-                                        marginTop: 12,
-                                        paddingTop: 12,
-                                        borderTop: '2px solid #e5e7eb',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                      }}>
-                                        <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Total:</span>
-                                        <span style={{ fontSize: 18, fontWeight: 700, color: '#059669' }}>
-                                          {total.toFixed(2)}€
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Columna de información adicional */}
-                                  <div>
-                                    <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                                      ℹ️ Información
-                                    </h4>
-                                    <div style={{ 
-                                      backgroundColor: '#fff',
-                                      borderRadius: 8,
-                                      padding: 12,
-                                      border: '1px solid #e5e7eb'
-                                    }}>
-                                      <div style={{ marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Tipo de gasto</div>
-                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                          {exp.category === 'sociedad' ? '🏛️ Sociedad' : '👤 Personal'}
-                                        </div>
-                                      </div>
-                                      
-                                      {exp.category === 'sociedad' && exp.attendees && (
-                                        <div style={{ marginBottom: 12 }}>
-                                          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Asistentes</div>
-                                          <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                            👥 {exp.attendees} persona{exp.attendees !== 1 ? 's' : ''}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {exp.category === 'sociedad' && exp.totalGeneral && (
-                                        <div style={{ 
-                                          marginBottom: 12,
-                                          padding: 12,
-                                          backgroundColor: '#fef3c7',
-                                          borderRadius: 6,
-                                          border: '1px solid #fbbf24'
-                                        }}>
-                                          <div style={{ fontSize: 11, color: '#92400e', marginBottom: 8, fontWeight: 600 }}>💰 Reparto del gasto</div>
-                                          <div style={{ fontSize: 12, color: '#78350f', marginBottom: 4 }}>
-                                            <strong>Total general:</strong> {exp.totalGeneral.toFixed(2)}€
-                                          </div>
-                                          <div style={{ fontSize: 12, color: '#78350f', marginBottom: 4 }}>
-                                            <strong>Total asistentes:</strong> {exp.totalAttendees} persona{exp.totalAttendees !== 1 ? 's' : ''}
-                                          </div>
-                                          <div style={{ fontSize: 12, color: '#78350f', marginBottom: 4 }}>
-                                            <strong>Por asistente:</strong> {exp.amountPerAttendee.toFixed(2)}€
-                                          </div>
-                                          <div style={{ fontSize: 13, color: '#78350f', marginTop: 8, paddingTop: 8, borderTop: '1px solid #fbbf24', fontWeight: 600 }}>
-                                            <strong>Tu parte ({exp.attendees} asist.):</strong> {exp.amount.toFixed(2)}€
-                                          </div>
-                                          
-                                          {exp.participantes && exp.participantes.length > 0 && (
-                                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #fbbf24' }}>
-                                              <div style={{ fontSize: 11, color: '#92400e', marginBottom: 6, fontWeight: 600 }}>👥 Lista de asistentes:</div>
-                                              {exp.participantes.map((participante, idx) => {
-                                                // Buscar el socio en la lista para obtener su alias actualizado
-                                                const socio = socios.find(s => s.id === participante.uid || s.email === participante.email);
-                                                return (
-                                                  <div key={idx} style={{ 
-                                                    fontSize: 12, 
-                                                    color: '#78350f', 
-                                                    marginBottom: 3,
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center'
-                                                  }}>
-                                                    <span>
-                                                      • {socio?.alias || participante.alias || socio?.nombre || participante.nombre || participante.email} 
-                                                      {participante.attendees > 1 && ` (${participante.attendees} asist.)`}
-                                                    </span>
-                                                    <span style={{ fontWeight: 600 }}>{participante.amount.toFixed(2)}€</span>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {exp.category === 'sociedad' && exp.eventoTexto && (
-                                        <div style={{ marginBottom: 12 }}>
-                                          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Evento</div>
-                                          <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                            📅 {exp.eventoTexto}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      <div style={{ marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Fecha y hora</div>
-                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                          🕒 {expDate.toLocaleString('es-ES')}
-                                        </div>
-                                      </div>
-
-                                      {profile?.isAdmin && (
-                                        <div>
-                                          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Usuario</div>
-                                          <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>
-                                            {exp.userEmail || '-'}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {exp.item && (
-                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
-                                          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Descripción</div>
-                                          <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>
-                                            {exp.item}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Vista móvil */}
-              <div className="tpv-history-mobile">
-                {filteredExpenses.map((exp, index) => {
-                  const lines = exp.productLines || [];
-                  const expDate = exp.date?.toDate ? exp.date.toDate() : new Date(exp.date);
-                  const fechaStr = expDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                  const horaStr = expDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                  
-                  let total = 0;
-                  let myPart = 0;
-                  
-                  if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
-                    total = lines.reduce((sum, line) => {
-                      const qty = Number(line.qty || 0);
-                      const price = Number(line.price || 0);
-                      return sum + (qty * price);
-                    }, 0);
-                    const userParticipante = exp.participantes.find(p => p.uid === user?.uid);
-                    myPart = userParticipante ? Number(userParticipante.amount || 0) : 0;
-                  } else {
-                    total = lines.reduce((sum, line) => {
-                      const qty = Number(line.qty || 0);
-                      const price = Number(line.price || 0);
-                      return sum + (qty * price);
-                    }, 0);
-                    myPart = total;
-                  }
-
-                  // Si el ticket está siendo editado, mostrar el formulario completo
-                  if (editingTicketId === exp.id && editingData) {
-                    return (
-                      <div key={exp.id} style={{
-                        background: '#fff',
-                        border: '2px solid #3b82f6',
-                        borderRadius: 10,
-                        padding: 16,
-                        marginBottom: 10,
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)'
-                      }}>
-                        <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
-                          ✏️ Editando ticket
-                        </h4>
-
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                            Fecha y hora
-                          </label>
-                          <input 
-                            type="datetime-local" 
-                            value={editingData.dateInput}
-                            onChange={(e) => setEditingData(d => ({ ...d, dateInput: e.target.value }))}
-                            className="full-input"
-                          />
-                        </div>
-
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                            Tipo de gasto
-                          </label>
-                          <select
-                            value={editingData.category}
-                            onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
-                            className="full-input"
-                          >
-                            <option value="venta">Personal</option>
-                            <option value="sociedad">Sociedad</option>
-                          </select>
-                        </div>
-
-                        {editingData.category === 'sociedad' && (
-                          <>
-                            <div style={{ marginBottom: 16 }}>
-                              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
-                                Evento (opcional)
-                              </label>
-                              <input 
-                                type="text" 
-                                placeholder="Nombre del evento"
-                                value={editingData.eventoTexto}
-                                onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
-                                className="full-input"
-                              />
-                            </div>
-
-                            <div style={{ marginBottom: 16 }}>
-                              <div 
-                                onClick={() => setShowSociosSection(!showSociosSection)}
-                                style={{ 
-                                  display: 'flex', 
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  cursor: 'pointer',
-                                  padding: '8px 12px',
-                                  background: '#f3f4f6',
-                                  borderRadius: 6,
-                                  marginBottom: showSociosSection ? 8 : 0
-                                }}
-                              >
-                                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
-                                  Socios participantes
-                                </label>
-                                <span style={{ fontSize: 16, color: '#6b7280' }}>
-                                  {showSociosSection ? '▼' : '▶'}
-                                </span>
-                              </div>
-                              {showSociosSection && (
-                                <div style={{ 
-                                  maxHeight: 200, 
-                                  overflowY: 'auto', 
-                                  border: '1px solid #d1d5db', 
-                                  borderRadius: 6, 
-                                padding: 12,
-                                backgroundColor: '#f9fafb'
-                              }}>
-                                {socios.map(socio => (
-                                  <div key={socio.id} style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: 12, 
-                                    marginBottom: 8,
-                                    padding: 8,
-                                    backgroundColor: '#fff',
-                                    borderRadius: 6,
-                                    border: '1px solid #e5e7eb'
-                                  }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={editingData.selectedSocios?.[socio.id] || false}
-                                      onChange={(e) => {
-                                        const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
-                                        const newAttendees = { ...editingData.attendeesCount };
-                                        if (e.target.checked && !newAttendees[socio.id]) {
-                                          newAttendees[socio.id] = 1;
-                                        }
-                                        setEditingData(d => ({ 
-                                          ...d, 
-                                          selectedSocios: newSelected,
-                                          attendeesCount: newAttendees
-                                        }));
-                                      }}
-                                      style={{ cursor: 'pointer' }}
-                                    />
-                                    <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
-                                      {socio.alias || socio.nombre || socio.email}
-                                    </span>
-                                    {editingData.selectedSocios?.[socio.id] && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <span style={{ fontSize: 12, color: '#6b7280' }}>Asist.:</span>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={editingData.attendeesCount?.[socio.id] || 1}
-                                          onChange={(e) => {
-                                            const val = e.target.value;
-                                            const newAttendees = { 
-                                              ...editingData.attendeesCount, 
-                                              [socio.id]: val === '' ? '' : Math.max(1, Number(val))
-                                            };
-                                            setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
-                                          }}
-                                          onBlur={(e) => {
-                                            if (e.target.value === '' || Number(e.target.value) < 1) {
-                                              const newAttendees = { 
-                                                ...editingData.attendeesCount, 
-                                                [socio.id]: 1
-                                              };
-                                              setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
-                                            }
-                                          }}
-                                          style={{
-                                            width: 60,
-                                            padding: '4px 8px',
-                                            fontSize: 13,
-                                            border: '1px solid #d1d5db',
-                                            borderRadius: 4
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                              )}
-                            </div>
-                          </>
-                        )}
-
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 8 }}>
-                            Productos en el ticket
-                          </label>
-                          {(editingData.productLines || []).map((pl, idx) => (
-                            <div key={idx} style={{
-                              display: 'flex', 
-                              gap: 4, 
-                              marginBottom: 8,
-                              alignItems: 'center',
-                              background: '#fff',
-                              padding: 8,
-                              borderRadius: 6,
-                              border: '1px solid #e5e7eb'
-                            }}>
-                              <input 
-                                type="text"
-                                value={pl.label || ''}
-                                onChange={(e) => updateLineEditing(idx, { label: e.target.value })}
-                                placeholder="Producto"
-                                style={{ 
-                                  flex: 1,
-                                  minWidth: 0,
-                                  padding: 6,
-                                  fontSize: 12,
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: 4
-                                }}
-                              />
-                              <input 
-                                type="number"
-                                value={pl.qty || 1}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  updateLineEditing(idx, { qty: val === '' ? '' : Math.max(1, Number(val)) });
-                                }}
-                                onBlur={(e) => {
-                                  if (e.target.value === '' || Number(e.target.value) < 1) {
-                                    updateLineEditing(idx, { qty: 1 });
-                                  }
-                                }}
-                                min="1"
-                                style={{ 
-                                  width: 40,
-                                  padding: 6,
-                                  fontSize: 12,
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: 4,
-                                  textAlign: 'center'
-                                }}
-                              />
-                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <input 
-                                  type="number"
-                                  value={pl.price || 0}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    updateLineEditing(idx, { price: val === '' ? '' : Number(val) });
-                                  }}
-                                  onBlur={(e) => {
-                                    if (e.target.value === '') {
-                                      updateLineEditing(idx, { price: 0 });
-                                    }
-                                  }}
-                                  step="0.01"
-                                  style={{ 
-                                    width: 50,
-                                    padding: 6,
-                                    paddingRight: 18,
-                                    fontSize: 12,
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: 4
-                                  }}
-                                />
-                                <span style={{ position: 'absolute', right: 6, fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>€</span>
-                              </div>
-                              <button 
-                                onClick={() => removeLineFromEditing(idx)}
-                                style={{
-                                  padding: 4,
-                                  fontSize: 14,
-                                  background: '#fee2e2',
-                                  border: '1px solid #fecaca',
-                                  borderRadius: 4,
-                                  cursor: 'pointer',
-                                  width: 32,
-                                  height: 32,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            onClick={addLineToEditing}
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: '#fff',
-                              backgroundColor: '#6366f1',
-                              border: 'none',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              marginTop: 8
-                            }}
-                          >
-                            + Añadir línea manual
-                          </button>
-                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '2px solid #e5e7eb', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
-                            Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                          <button
-                            onClick={cancelEdit}
-                            style={{
-                              flex: 1,
-                              padding: '10px 16px',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: '#374151',
-                              backgroundColor: '#f3f4f6',
-                              border: 'none',
-                              borderRadius: 8,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            onClick={saveEdit}
-                            style={{
-                              flex: 1,
-                              padding: '10px 16px',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: '#fff',
-                              backgroundColor: '#3b82f6',
-                              border: 'none',
-                              borderRadius: 8,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Guardar
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Vista normal del ticket (no editando)
-                  return (
-                    <div key={exp.id} style={{
-                      background: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 10,
-                      padding: 12,
-                      marginBottom: 10,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>
-                            {fechaStr}
-                          </div>
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                            {horaStr}
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#059669' }}>
-                          {profile?.isAdmin ? total.toFixed(2) : myPart.toFixed(2)}€
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: 8 }}>
-                        {lines.map((pl, i) => (
-                          <div key={i} style={{ fontSize: 11, color: '#374151', marginBottom: 2 }}>
-                            <span style={{ fontWeight: 600 }}>{pl.qty}×</span> {pl.label} 
-                            <span style={{ color: '#6b7280' }}> ({Number(pl.price || 0).toFixed(2)}€)</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        {exp.category === 'sociedad' ? (
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: 6,
-                            fontSize: 9,
-                            fontWeight: 600,
-                            backgroundColor: '#fff3cd',
-                            color: '#856404'
-                          }}>
-                            🏛️ Sociedad
-                          </span>
-                        ) : (
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: 6,
-                            fontSize: 9,
-                            fontWeight: 600,
-                            backgroundColor: '#e0e7ff',
-                            color: '#3730a3'
-                          }}>
-                            Personal
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
-                          <button className="btn-small" onClick={() => startEditTicket(exp)} style={{ flex: 1, fontSize: 11 }}>
-                            ✏️ Editar
-                          </button>
-                        )}
-                        {(profile?.isAdmin || exp.userId === user?.uid || exp.uid === user?.uid) && (
-                          <button className="btn-ghost" onClick={() => handleDeleteTicket(exp.id)} style={{ flex: 1, fontSize: 11 }}>
-                            🗑️ Eliminar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Sección de Histórico de Tickets */}
+      <HistoricoTickets 
+        filteredExpenses={filteredExpenses} 
+        dateFrom={dateFrom} 
+        dateTo={dateTo}
+        onTicketDeleted={loadExpenses}
+      />
 
       {/* Modal Historial de Descargas */}
       {showHistorial && (
@@ -3027,6 +1837,986 @@ export default function ListadosTPV({ user, profile }) {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Componente interno para mostrar el histórico de tickets
+function HistoricoTickets({ filteredExpenses, dateFrom, dateTo, onTicketDeleted }) {
+  const [user, setUser] = useState(null);
+  const [expandedTickets, setExpandedTickets] = useState({});
+  const [editingTicketId, setEditingTicketId] = useState(null);
+  const [editingData, setEditingData] = useState(null);
+  const [socios, setSocios] = useState([]);
+  const [showSociosSection, setShowSociosSection] = useState(false);
+  const nav = useNavigate();
+
+  // Obtener usuario actual
+  useEffect(() => {
+    import('../firebase').then(({ auth }) => {
+      const unsubscribe = auth.onAuthStateChanged(currentUser => {
+        setUser(currentUser);
+      });
+      return () => unsubscribe();
+    });
+  }, []);
+
+  // Cargar socios
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const allSocios = await getAllSocios();
+        setSocios(allSocios);
+      } catch (err) {
+        console.error('Error cargando socios:', err);
+      }
+    };
+    load();
+  }, []);
+
+  // Usar los tickets filtrados que recibimos como props
+  const history = filteredExpenses.map(d => ({
+    ...d,
+    createdAtStr: d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : (d.createdAt || "")
+  }));
+
+  const toInputDateTime = (firebaseTimestamp) => {
+    if (!firebaseTimestamp) return '';
+    const date = firebaseTimestamp.toDate ? firebaseTimestamp.toDate() : new Date(firebaseTimestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const fromInputDateTime = (inputStr) => {
+    if (!inputStr) return null;
+    const date = new Date(inputStr);
+    return { seconds: Math.floor(date.getTime() / 1000), nanoseconds: 0 };
+  };
+
+  const groupProductLines = (lines) => {
+    if (!lines || lines.length === 0) return [];
+    const grouped = {};
+    lines.forEach(l => {
+      const key = `${l.label}_${l.price}`;
+      if (!grouped[key]) {
+        grouped[key] = { label: l.label, price: l.price, qty: 0 };
+      }
+      grouped[key].qty += Number(l.qty || 1);
+    });
+    return Object.values(grouped);
+  };
+
+  const startEditTicket = (ticket) => {
+    const selectedSocios = {};
+    const attendeesCount = {};
+    
+    if (ticket.participantes && Array.isArray(ticket.participantes)) {
+      ticket.participantes.forEach(p => {
+        selectedSocios[p.uid] = true;
+        attendeesCount[p.uid] = p.attendees || 1;
+      });
+    }
+
+    setEditingData({
+      productLines: ticket.productLines || [],
+      dateInput: toInputDateTime(ticket.date || ticket.createdAt),
+      category: ticket.category || 'venta',
+      eventoTexto: ticket.eventoTexto || '',
+      selectedSocios: selectedSocios,
+      attendeesCount: attendeesCount
+    });
+    setEditingTicketId(ticket.id);
+    setShowSociosSection(false);
+  };
+
+  const cancelEdit = () => {
+    setEditingTicketId(null);
+    setEditingData(null);
+    setShowSociosSection(false);
+  };
+
+  const saveEdit = async () => {
+    try {
+      if (!editingData.productLines || editingData.productLines.length === 0) {
+        alert('Debes tener al menos un producto');
+        return;
+      }
+
+      const groupedForSave = groupProductLines(editingData.productLines);
+      const computedTotal = groupedForSave.reduce((sum, line) => {
+        return sum + (Number(line.qty) * Number(line.price));
+      }, 0);
+
+      if (editingData.category === 'sociedad') {
+        const selectedSociosList = Object.keys(editingData.selectedSocios || {}).filter(k => editingData.selectedSocios[k]);
+        
+        if (selectedSociosList.length === 0) {
+          alert('Debes seleccionar al menos un socio');
+          return;
+        }
+        
+        const totalAttendees = selectedSociosList.reduce((sum, socioId) => {
+          return sum + Number(editingData.attendeesCount[socioId] || 1);
+        }, 0);
+        
+        const amountPerAttendee = computedTotal / totalAttendees;
+        
+        const participantes = selectedSociosList.map(socioId => {
+          const attendees = Number(editingData.attendeesCount[socioId] || 1);
+          const socioAmount = amountPerAttendee * attendees;
+          const socio = socios.find(s => s.id === socioId);
+          return {
+            uid: socioId,
+            email: socio?.email || '',
+            nombre: socio?.nombre || socio?.email?.split('@')[0] || 'Socio',
+            attendees: attendees,
+            amount: socioAmount
+          };
+        });
+        
+        const eventoTexto = editingData.eventoTexto?.trim() || `Gasto conjunto`;
+        
+        const payload = {
+          item: `[SOCIEDAD - ${eventoTexto}] ${groupedForSave.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} asistente${totalAttendees > 1 ? 's' : ''})`,
+          amount: computedTotal,
+          productLines: groupedForSave,
+          date: editingData.dateInput ? fromInputDateTime(editingData.dateInput) : null,
+          category: 'sociedad',
+          participantes: participantes,
+          eventoTexto: eventoTexto,
+          totalGeneral: computedTotal,
+          amountPerAttendee: amountPerAttendee,
+          totalAttendees: totalAttendees
+        };
+        
+        await updateExpense(editingTicketId, payload);
+      } else {
+        const payload = {
+          item: groupedForSave.map(l => `${l.qty}x ${l.label}`).join(", "),
+          amount: computedTotal,
+          productLines: groupedForSave,
+          date: editingData.dateInput ? fromInputDateTime(editingData.dateInput) : null,
+          category: editingData.category,
+          attendees: null,
+          eventoTexto: null,
+          totalGeneral: null,
+          amountPerAttendee: null,
+          totalAttendees: null
+        };
+        
+        await updateExpense(editingTicketId, payload);
+      }
+      
+      cancelEdit();
+      alert('Ticket actualizado correctamente');
+      
+      if (onTicketDeleted) {
+        onTicketDeleted();
+      }
+    } catch (err) {
+      console.error('Error saving edit:', err);
+      alert('Error al guardar cambios: ' + (err.message || err));
+    }
+  };
+
+  const deleteTicket = async (id) => {
+    if (!window.confirm('¿Seguro que quieres eliminar este ticket?')) return;
+    try {
+      await deleteExpense(id);
+      alert('Ticket eliminado correctamente');
+      if (onTicketDeleted) {
+        onTicketDeleted();
+      }
+    } catch (err) {
+      console.error('Error eliminando ticket:', err);
+      alert('Error al eliminar el ticket: ' + (err.message || err));
+    }
+  };
+
+  const calcularGastoIndividual = (ticket) => {
+    if (ticket.category !== 'sociedad') return null;
+    
+    // Calcular total de asistentes
+    let totalAsistentes = 0;
+    let asistentesUsuario = 0;
+    
+    if (ticket.participantes && Array.isArray(ticket.participantes)) {
+      ticket.participantes.forEach(p => {
+        const attendees = p.attendees || 1;
+        totalAsistentes += attendees;
+        if (p.uid === user?.uid) {
+          asistentesUsuario = attendees;
+        }
+      });
+    } else {
+      // Sistema antiguo: solo el usuario actual
+      totalAsistentes = ticket.attendees || 1;
+      asistentesUsuario = ticket.attendees || 1;
+    }
+    
+    if (totalAsistentes === 0) return null;
+    
+    const total = Number(ticket.amount || 0);
+    const gastoPorPersona = total / totalAsistentes;
+    const gastoIndividual = gastoPorPersona * asistentesUsuario;
+    
+    return {
+      gastoIndividual: gastoIndividual,
+      asistentesUsuario: asistentesUsuario,
+      totalAsistentes: totalAsistentes
+    };
+  };
+
+  return (
+    <div style={{
+      background: '#fff',
+      padding: 24,
+      borderRadius: 16,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      marginBottom: 32
+    }}>
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: 0, marginBottom: 8, fontSize: 20, fontWeight: 600, color: '#111827' }}>
+          📝 Histórico de Tickets
+        </h3>
+        <div style={{
+          fontSize: 14,
+          color: '#6b7280',
+          fontWeight: 500
+        }}>
+          📅 {new Date(dateFrom).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(dateTo).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+        </div>
+      </div>
+      
+      {history.length === 0 ? (
+        <p style={{ color: '#6b7280', textAlign: 'center', padding: 20 }}>No hay tickets en el período seleccionado</p>
+      ) : (
+        <>
+          {/* Vista escritorio */}
+          <div className="tpv-history-table" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                  Fecha / Hora
+                </th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  Productos
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                  Tipo
+                </th>
+                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                  Total
+                </th>
+                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                  Tu Gasto
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((h, index) => {
+                const gastoInfo = calcularGastoIndividual(h);
+                return (
+                <React.Fragment key={h.id}>
+                  <tr style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{h.createdAtStr?.split(',')[0] || ''}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>{h.createdAtStr?.split(',')[1]?.trim() || ''}</div>
+                      </div>
+                    </td>
+
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151' }}>
+                      <div>
+                        {groupProductLines(h.productLines || []).map((pl, i) => (
+                          <div key={i} style={{ marginBottom: 4 }}>
+                            <span style={{ fontWeight: 500, color: '#6b7280' }}>{pl.qty}×</span> {pl.label}
+                            <span style={{ color: '#6b7280', marginLeft: 8 }}>
+                              ({Number(pl.price || 0).toFixed(2)}€)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      {h.category === 'sociedad' ? (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          backgroundColor: '#fff3cd',
+                          color: '#856404',
+                          border: '1px solid #ffc107',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          🏛️ Sociedad
+                          {h.attendees && <div style={{ fontSize: 10 }}>({h.attendees} asist.)</div>}
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          backgroundColor: '#e0e7ff',
+                          color: '#3730a3',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          Personal
+                        </span>
+                      )}
+                    </td>
+
+                    <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {Number(h.amount || 0).toFixed(2)}€
+                    </td>
+
+                    <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {gastoInfo ? (
+                        <div>
+                          <div style={{ color: '#2563eb' }}>
+                            {gastoInfo.gastoIndividual.toFixed(2)}€
+                          </div>
+                          <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 400 }}>
+                            ({gastoInfo.asistentesUsuario}/{gastoInfo.totalAsistentes} asist.)
+                          </div>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
+                      )}
+                    </td>
+
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                        <button 
+                          onClick={() => startEditTicket(h)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: '#fff',
+                            backgroundColor: '#3b82f6',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                          title="Editar ticket"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          onClick={() => deleteTicket(h.id)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: '#fff',
+                            backgroundColor: '#ef4444',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
+                          title="Eliminar ticket"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Fila de edición expandida */}
+                  {editingTicketId === h.id && editingData && (
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
+                      <td colSpan={6} style={{ padding: '20px 16px' }}>
+                        <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, border: '2px solid #3b82f6' }}>
+                          <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                            ✏️ Editando ticket
+                          </h4>
+                          
+                          <div style={{ marginBottom: 16 }}>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                              Tipo de gasto
+                            </label>
+                            <select
+                              value={editingData.category}
+                              onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
+                              className="full-input"
+                            >
+                              <option value="venta">Personal</option>
+                              <option value="sociedad">Sociedad</option>
+                            </select>
+                          </div>
+
+                          {editingData.category === 'sociedad' && (
+                            <>
+                              <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                                  Evento (opcional)
+                                </label>
+                                <input 
+                                  type="text" 
+                                  placeholder="Nombre del evento"
+                                  value={editingData.eventoTexto || ''}
+                                  onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
+                                  className="full-input"
+                                />
+                              </div>
+
+                              <div style={{ marginBottom: 16 }}>
+                                <div 
+                                  onClick={() => setShowSociosSection(!showSociosSection)}
+                                  style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
+                                    padding: '8px 12px',
+                                    background: '#f3f4f6',
+                                    borderRadius: 6,
+                                    marginBottom: showSociosSection ? 8 : 0
+                                  }}
+                                >
+                                  <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                                    Socios participantes
+                                  </label>
+                                  <span style={{ fontSize: 16, color: '#6b7280' }}>
+                                    {showSociosSection ? '▼' : '▶'}
+                                  </span>
+                                </div>
+                                {showSociosSection && (
+                                  <div style={{ 
+                                    maxHeight: 200, 
+                                    overflowY: 'auto', 
+                                    border: '1px solid #d1d5db', 
+                                    borderRadius: 6, 
+                                    padding: 12,
+                                    backgroundColor: '#f9fafb'
+                                  }}>
+                                    {socios
+                                      .sort((a, b) => {
+                                        const aSelected = editingData.selectedSocios?.[a.id] || false;
+                                        const bSelected = editingData.selectedSocios?.[b.id] || false;
+                                        if (aSelected && !bSelected) return -1;
+                                        if (!aSelected && bSelected) return 1;
+                                        return (a.alias || a.nombre || a.email).localeCompare(b.alias || b.nombre || b.email);
+                                      })
+                                      .map(socio => (
+                                      <div key={socio.id} style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 12, 
+                                        marginBottom: 8,
+                                        padding: 8,
+                                        backgroundColor: editingData.selectedSocios?.[socio.id] ? '#eff6ff' : '#fff',
+                                        borderRadius: 6,
+                                        border: editingData.selectedSocios?.[socio.id] ? '2px solid #3b82f6' : '1px solid #e5e7eb'
+                                      }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={editingData.selectedSocios?.[socio.id] || false}
+                                          onChange={(e) => {
+                                            const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
+                                            const newAttendees = { ...editingData.attendeesCount };
+                                            if (e.target.checked && !newAttendees[socio.id]) {
+                                              newAttendees[socio.id] = 1;
+                                            }
+                                            setEditingData(d => ({ 
+                                              ...d, 
+                                              selectedSocios: newSelected,
+                                              attendeesCount: newAttendees
+                                            }));
+                                          }}
+                                          style={{ cursor: 'pointer', width: 18, height: 18 }}
+                                        />
+                                        <span style={{ 
+                                          flex: 1, 
+                                          fontSize: 13, 
+                                          color: '#111827',
+                                          fontWeight: editingData.selectedSocios?.[socio.id] ? 600 : 400
+                                        }}>
+                                          {socio.alias || socio.nombre || socio.email}
+                                        </span>
+                                        {editingData.selectedSocios?.[socio.id] && (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                                if (currentVal > 1) {
+                                                  const newAttendees = { 
+                                                    ...editingData.attendeesCount, 
+                                                    [socio.id]: currentVal - 1
+                                                  };
+                                                  setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                }
+                                              }}
+                                              style={{
+                                                width: 24,
+                                                height: 24,
+                                                padding: 0,
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                color: '#fff',
+                                                backgroundColor: '#ef4444',
+                                                border: 'none',
+                                                borderRadius: 4,
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              -
+                                            </button>
+                                            <span style={{ minWidth: 24, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>
+                                              {editingData.attendeesCount?.[socio.id] || 1}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                                const newAttendees = { 
+                                                  ...editingData.attendeesCount, 
+                                                  [socio.id]: currentVal + 1
+                                                };
+                                                setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                              }}
+                                              style={{
+                                                width: 24,
+                                                height: 24,
+                                                padding: 0,
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                color: '#fff',
+                                                backgroundColor: '#10b981',
+                                                border: 'none',
+                                                borderRadius: 4,
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                            <button
+                              onClick={saveEdit}
+                              style={{
+                                flex: 1,
+                                padding: '10px',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: '#fff',
+                                backgroundColor: '#10b981',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              💾 Guardar
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              style={{
+                                flex: 1,
+                                padding: '10px',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: '#374151',
+                                backgroundColor: '#f3f4f6',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕ Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )})}
+            </tbody>
+          </table>
+          </div>
+
+          {/* Vista móvil */}
+          <div className="tpv-history-mobile">
+            {history.map((h) => {
+              const lines = groupProductLines(h.productLines || []);
+              const isEditing = editingTicketId === h.id;
+              const isExpanded = expandedTickets[h.id] || isEditing;
+              const isSociedad = h.category === 'sociedad';
+              
+              return (
+                <React.Fragment key={h.id}>
+                  {/* Card principal del ticket - colapsable */}
+                  <div 
+                    onClick={() => {
+                      if (!isEditing) {
+                        setExpandedTickets(prev => ({
+                          ...prev,
+                          [h.id]: !prev[h.id]
+                        }));
+                      }
+                    }}
+                    style={{
+                      background: '#fff',
+                      border: isEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                      borderRadius: 10,
+                      padding: 12,
+                      marginBottom: 10,
+                      boxShadow: isEditing ? '0 4px 12px rgba(59,130,246,0.2)' : '0 1px 3px rgba(0,0,0,0.08)',
+                      cursor: isEditing ? 'default' : 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {/* Encabezado siempre visible */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isExpanded ? 8 : 0 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 2 }}>
+                          {h.createdAtStr?.split(',')[0] || ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                          {h.createdAtStr?.split(',')[1]?.trim() || ''}
+                        </div>
+                      </div>
+                      {!isExpanded && (
+                        <div style={{ 
+                          fontSize: 11, 
+                          fontWeight: 700, 
+                          color: isSociedad ? '#92400e' : '#2563eb',
+                          background: isSociedad ? '#fef3c7' : '#dbeafe',
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 24,
+                          height: 22,
+                          marginLeft: 'auto',
+                          marginRight: 'auto'
+                        }}>
+                          {isSociedad ? 'S' : 'P'}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flex: 1 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#059669' }}>
+                          {Number(h.amount || 0).toFixed(2)}€
+                        </div>
+                        {!isEditing && (
+                          <div style={{ 
+                            fontSize: 18, 
+                            color: '#9ca3af',
+                            transition: 'transform 0.2s ease',
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                          }}>
+                            ▼
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Contenido expandible */}
+                    {isExpanded && (
+                      <>
+                        <div style={{ marginBottom: 8 }}>
+                          {lines.map((pl, i) => (
+                            <div key={i} style={{ fontSize: 11, color: '#374151', marginBottom: 2 }}>
+                              <span style={{ fontWeight: 600 }}>{pl.qty}×</span> {pl.label} 
+                              <span style={{ color: '#6b7280' }}> ({Number(pl.price || 0).toFixed(2)}€)</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          {h.category === 'sociedad' ? (
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              fontSize: 9,
+                              fontWeight: 600,
+                              backgroundColor: '#fff3cd',
+                              color: '#856404'
+                            }}>
+                              🏛️ Sociedad
+                            </span>
+                          ) : (
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              fontSize: 9,
+                              fontWeight: 600,
+                              backgroundColor: '#e0e7ff',
+                              color: '#3730a3'
+                            }}>
+                              Personal
+                            </span>
+                          )}
+                        </div>
+
+                        {!isEditing && (
+                          <div 
+                            style={{ display: 'flex', gap: 6 }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button className="btn-small" onClick={() => startEditTicket(h)} style={{ flex: 1, fontSize: 11 }}>
+                              ✏️ Editar
+                            </button>
+                            <button className="btn-ghost" onClick={() => deleteTicket(h.id)} style={{ flex: 1, fontSize: 11 }}>
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Interfaz de edición móvil */}
+                  {isEditing && editingData && (
+                    <div style={{
+                      background: '#f8fafc',
+                      border: '2px solid #3b82f6',
+                      borderRadius: 10,
+                      padding: 16,
+                      marginTop: -10,
+                      marginBottom: 16
+                    }}>
+                      <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                        ✏️ Editando ticket
+                      </h4>
+
+                      {/* Tipo de gasto */}
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                          Tipo de gasto
+                        </label>
+                        <select
+                          value={editingData.category}
+                          onChange={(e) => setEditingData(d => ({ ...d, category: e.target.value }))}
+                          className="full-input"
+                          style={{ fontSize: 14 }}
+                        >
+                          <option value="venta">Personal</option>
+                          <option value="sociedad">Sociedad</option>
+                        </select>
+                      </div>
+
+                      {/* Evento (solo si es sociedad) */}
+                      {editingData.category === 'sociedad' && (
+                        <>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                              Evento
+                            </label>
+                            <input 
+                              type="text"
+                              value={editingData.eventoTexto || ''}
+                              onChange={(e) => setEditingData(d => ({ ...d, eventoTexto: e.target.value }))}
+                              className="full-input"
+                              placeholder="Nombre del evento"
+                              style={{ fontSize: 14 }}
+                            />
+                          </div>
+
+                          {/* Selección de socios */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div 
+                              onClick={() => setShowSociosSection(!showSociosSection)}
+                              style={{ 
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                padding: '8px 12px',
+                                background: '#f3f4f6',
+                                borderRadius: 6,
+                                marginBottom: showSociosSection ? 8 : 0
+                              }}
+                            >
+                              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                                Socios participantes
+                              </label>
+                              <span style={{ fontSize: 14, color: '#6b7280' }}>
+                                {showSociosSection ? '▼' : '▶'}
+                              </span>
+                            </div>
+                            {showSociosSection && (
+                              <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: 6, padding: 8, backgroundColor: '#f9fafb' }}>
+                                {socios
+                                  .sort((a, b) => {
+                                    const aSelected = editingData.selectedSocios?.[a.id] || false;
+                                    const bSelected = editingData.selectedSocios?.[b.id] || false;
+                                    if (aSelected && !bSelected) return -1;
+                                    if (!aSelected && bSelected) return 1;
+                                    return (a.alias || a.nombre || a.email).localeCompare(b.alias || b.nombre || b.email);
+                                  })
+                                  .map(socio => (
+                                  <div key={socio.id} style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 8, 
+                                    marginBottom: 6,
+                                    padding: 6,
+                                    backgroundColor: editingData.selectedSocios?.[socio.id] ? '#eff6ff' : '#fff',
+                                    borderRadius: 6,
+                                    border: editingData.selectedSocios?.[socio.id] ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                                    fontSize: 12
+                                  }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={editingData.selectedSocios?.[socio.id] || false}
+                                      onChange={(e) => {
+                                        const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
+                                        const newAttendees = { ...editingData.attendeesCount };
+                                        if (e.target.checked && !newAttendees[socio.id]) {
+                                          newAttendees[socio.id] = 1;
+                                        }
+                                        setEditingData(d => ({ 
+                                          ...d, 
+                                          selectedSocios: newSelected,
+                                          attendeesCount: newAttendees
+                                        }));
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    />
+                                    <span style={{ flex: 1, fontWeight: editingData.selectedSocios?.[socio.id] ? 600 : 400 }}>
+                                      {socio.alias || socio.nombre || socio.email}
+                                    </span>
+                                    {editingData.selectedSocios?.[socio.id] && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                            if (currentVal > 1) {
+                                              const newAttendees = { 
+                                                ...editingData.attendeesCount, 
+                                                [socio.id]: currentVal - 1
+                                              };
+                                              setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                            }
+                                          }}
+                                          style={{
+                                            width: 20,
+                                            height: 20,
+                                            padding: 0,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            color: '#fff',
+                                            backgroundColor: '#ef4444',
+                                            border: 'none',
+                                            borderRadius: 4,
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          -
+                                        </button>
+                                        <span style={{ minWidth: 20, textAlign: 'center', fontSize: 12, fontWeight: 600 }}>
+                                          {editingData.attendeesCount?.[socio.id] || 1}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                            const newAttendees = { 
+                                              ...editingData.attendeesCount, 
+                                              [socio.id]: currentVal + 1
+                                            };
+                                            setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                          }}
+                                          style={{
+                                            width: 20,
+                                            height: 20,
+                                            padding: 0,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            color: '#fff',
+                                            backgroundColor: '#10b981',
+                                            border: 'none',
+                                            borderRadius: 4,
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                        <button
+                          onClick={saveEdit}
+                          style={{
+                            flex: 1,
+                            padding: '8px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#fff',
+                            backgroundColor: '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          💾 Guardar
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          style={{
+                            flex: 1,
+                            padding: '8px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#374151',
+                            backgroundColor: '#f3f4f6',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✕ Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

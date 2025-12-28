@@ -10,7 +10,7 @@ import {
   toggleFavoriteProduct,
   getAllSocios
 } from "../firebase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // util: agrupar líneas por productId o label+price
 function groupProductLines(lines = []) {
@@ -64,6 +64,17 @@ export default function TPV({ user, profile }) {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [showSociosSection, setShowSociosSection] = useState(false);
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Abrir histórico si viene desde URL
+  useEffect(() => {
+    if (searchParams.get('openHistory') === 'true') {
+      setShowHistory(true);
+      // Limpiar el parámetro de la URL
+      searchParams.delete('openHistory');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Detectar cambios en el tamaño de ventana
   useEffect(() => {
@@ -217,6 +228,16 @@ export default function TPV({ user, profile }) {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
     if (!user || !user.uid) { alert("No autenticado"); return; }
     
+    // Calcular el total antes de las validaciones
+    const groupedLines = groupedCart;
+    const computedTotal = groupedLines.reduce((s, l) => s + (l.price * l.qty), 0);
+    
+    // Validar que el total es mayor que 0
+    if (computedTotal <= 0) {
+      alert("No se puede guardar un ticket sin productos");
+      return;
+    }
+    
     // Si es para la sociedad, validar que al menos un socio esté seleccionado
     if (isForSociedad) {
       const selectedCount = Object.values(selectedSocios).filter(Boolean).length;
@@ -227,9 +248,6 @@ export default function TPV({ user, profile }) {
     }
     
     setLoadingSave(true);
-
-    const groupedLines = groupedCart;
-    const computedTotal = groupedLines.reduce((s, l) => s + (l.price * l.qty), 0);
 
     try {
       if (isForSociedad) {
@@ -470,6 +488,40 @@ export default function TPV({ user, profile }) {
       console.error("deleteExpense error:", err);
       alert("Error borrando ticket: " + (err.message || err));
     }
+  };
+
+  const calcularGastoIndividual = (ticket) => {
+    if (ticket.category !== 'sociedad') return null;
+    
+    // Calcular total de asistentes
+    let totalAsistentes = 0;
+    let asistentesUsuario = 0;
+    
+    if (ticket.participantes && Array.isArray(ticket.participantes)) {
+      ticket.participantes.forEach(p => {
+        const attendees = p.attendees || 1;
+        totalAsistentes += attendees;
+        if (p.uid === user?.uid) {
+          asistentesUsuario = attendees;
+        }
+      });
+    } else {
+      // Sistema antiguo: solo el usuario actual
+      totalAsistentes = ticket.attendees || 1;
+      asistentesUsuario = ticket.attendees || 1;
+    }
+    
+    if (totalAsistentes === 0) return null;
+    
+    const total = Number(ticket.amount || 0);
+    const gastoPorPersona = total / totalAsistentes;
+    const gastoIndividual = gastoPorPersona * asistentesUsuario;
+    
+    return {
+      gastoIndividual: gastoIndividual,
+      asistentesUsuario: asistentesUsuario,
+      totalAsistentes: totalAsistentes
+    };
   };
 
   // editing helpers for product lines
@@ -947,8 +999,14 @@ export default function TPV({ user, profile }) {
                                         const val = e.target.value;
                                         setAttendeesCount(prev => ({
                                           ...prev,
-                                          [socio.id]: val === '' ? 1 : Math.max(1, Number(val))
+                                          [socio.id]: val === '' ? '' : Number(val)
                                         }));
+                                      }}
+                                      onBlur={(e) => {
+                                        const val = Number(e.target.value);
+                                        if (!val || val < 1) {
+                                          setAttendeesCount(prev => ({ ...prev, [socio.id]: 1 }));
+                                        }
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                       onFocus={(e) => e.target.select()}
@@ -1056,13 +1114,18 @@ export default function TPV({ user, profile }) {
                     <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                       Total
                     </th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                      Tu Gasto
+                    </th>
                     <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
                       Acciones
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((h, index) => (
+                  {history.map((h, index) => {
+                    const gastoInfo = calcularGastoIndividual(h);
+                    return (
                     <React.Fragment key={h.id}>
                       <tr style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
                         <td style={{ padding: '12px 16px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
@@ -1119,6 +1182,21 @@ export default function TPV({ user, profile }) {
 
                         <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {Number(h.amount || 0).toFixed(2)}€
+                        </td>
+
+                        <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {gastoInfo ? (
+                            <div>
+                              <div style={{ color: '#2563eb' }}>
+                                {gastoInfo.gastoIndividual.toFixed(2)}€
+                              </div>
+                              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 400 }}>
+                                ({gastoInfo.asistentesUsuario}/{gastoInfo.totalAsistentes} asist.)
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
+                          )}
                         </td>
 
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -1209,16 +1287,25 @@ export default function TPV({ user, profile }) {
                                       padding: 12,
                                       backgroundColor: '#f9fafb'
                                     }}>
-                                      {socios.map(socio => (
+                                      {socios
+                                        .sort((a, b) => {
+                                          const aSelected = editingData.selectedSocios?.[a.id] || false;
+                                          const bSelected = editingData.selectedSocios?.[b.id] || false;
+                                          if (aSelected && !bSelected) return -1;
+                                          if (!aSelected && bSelected) return 1;
+                                          return (a.alias || a.nombre || a.email).localeCompare(b.alias || b.nombre || b.email);
+                                        })
+                                        .map(socio => (
                                         <div key={socio.id} style={{ 
                                           display: 'flex', 
                                           alignItems: 'center', 
                                           gap: 12, 
                                           marginBottom: 8,
                                           padding: 8,
-                                          backgroundColor: '#fff',
+                                          backgroundColor: editingData.selectedSocios?.[socio.id] ? '#eff6ff' : '#fff',
                                           borderRadius: 6,
-                                          border: '1px solid #e5e7eb'
+                                          border: editingData.selectedSocios?.[socio.id] ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                                          transition: 'all 0.2s ease'
                                         }}>
                                           <input
                                             type="checkbox"
@@ -1235,43 +1322,95 @@ export default function TPV({ user, profile }) {
                                                 attendeesCount: newAttendees
                                               }));
                                             }}
-                                            style={{ cursor: 'pointer' }}
+                                            style={{ cursor: 'pointer', width: 18, height: 18 }}
                                           />
-                                          <span style={{ flex: 1, fontSize: 13, color: '#111827' }}>
+                                          <span style={{ 
+                                            flex: 1, 
+                                            fontSize: 13, 
+                                            color: '#111827',
+                                            fontWeight: editingData.selectedSocios?.[socio.id] ? 600 : 400
+                                          }}>
                                             {socio.alias || socio.nombre || socio.email}
                                           </span>
                                           {editingData.selectedSocios?.[socio.id] && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                              <span style={{ fontSize: 12, color: '#6b7280' }}>Asist.:</span>
-                                              <input
-                                                type="number"
-                                                min="1"
-                                                value={editingData.attendeesCount?.[socio.id] || 1}
-                                                onChange={(e) => {
-                                                  const val = e.target.value;
-                                                  const newAttendees = { 
-                                                    ...editingData.attendeesCount, 
-                                                    [socio.id]: val === '' ? '' : Math.max(1, Number(val))
-                                                  };
-                                                  setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
-                                                }}
-                                                onBlur={(e) => {
-                                                  if (e.target.value === '' || Number(e.target.value) < 1) {
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                                  if (currentVal > 1) {
                                                     const newAttendees = { 
                                                       ...editingData.attendeesCount, 
-                                                      [socio.id]: 1
+                                                      [socio.id]: currentVal - 1
                                                     };
                                                     setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
                                                   }
                                                 }}
                                                 style={{
-                                                  width: 60,
-                                                  padding: '4px 8px',
-                                                  fontSize: 13,
-                                                  border: '1px solid #d1d5db',
-                                                  borderRadius: 4
+                                                  width: 28,
+                                                  height: 28,
+                                                  padding: 0,
+                                                  fontSize: 16,
+                                                  fontWeight: 600,
+                                                  color: '#fff',
+                                                  backgroundColor: '#ef4444',
+                                                  border: 'none',
+                                                  borderRadius: 6,
+                                                  cursor: 'pointer',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  transition: 'all 0.2s ease'
                                                 }}
-                                              />
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+                                              >
+                                                −
+                                              </button>
+                                              <span style={{ 
+                                                minWidth: 40, 
+                                                textAlign: 'center',
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                color: '#1f2937',
+                                                backgroundColor: '#fff',
+                                                padding: '4px 8px',
+                                                borderRadius: 4,
+                                                border: '1px solid #d1d5db'
+                                              }}>
+                                                {editingData.attendeesCount?.[socio.id] || 1}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const currentVal = editingData.attendeesCount?.[socio.id] || 1;
+                                                  const newAttendees = { 
+                                                    ...editingData.attendeesCount, 
+                                                    [socio.id]: currentVal + 1
+                                                  };
+                                                  setEditingData(d => ({ ...d, attendeesCount: newAttendees }));
+                                                }}
+                                                style={{
+                                                  width: 28,
+                                                  height: 28,
+                                                  padding: 0,
+                                                  fontSize: 16,
+                                                  fontWeight: 600,
+                                                  color: '#fff',
+                                                  backgroundColor: '#10b981',
+                                                  border: 'none',
+                                                  borderRadius: 6,
+                                                  cursor: 'pointer',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                                              >
+                                                +
+                                              </button>
                                             </div>
                                           )}
                                         </div>
@@ -1513,7 +1652,7 @@ export default function TPV({ user, profile }) {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -1742,26 +1881,38 @@ export default function TPV({ user, profile }) {
                                   padding: 8,
                                   background: '#fff'
                                 }}>
-                                {socios.map(socio => (
+                                {socios
+                                  .sort((a, b) => {
+                                    const aSelected = editingData.selectedSocios[a.id] || false;
+                                    const bSelected = editingData.selectedSocios[b.id] || false;
+                                    if (aSelected && !bSelected) return -1;
+                                    if (!aSelected && bSelected) return 1;
+                                    return (a.alias || a.nombre || a.email).localeCompare(b.alias || b.nombre || b.email);
+                                  })
+                                  .map(socio => (
                                   <div key={socio.id} style={{ 
                                     display: 'flex', 
                                     alignItems: 'center', 
                                     gap: 8, 
                                     marginBottom: 8,
-                                    padding: 6,
-                                    background: editingData.selectedSocios[socio.id] ? '#eff6ff' : 'transparent',
-                                    borderRadius: 6
+                                    padding: 8,
+                                    background: editingData.selectedSocios[socio.id] ? '#eff6ff' : '#fff',
+                                    borderRadius: 6,
+                                    border: editingData.selectedSocios[socio.id] ? '2px solid #3b82f6' : '1px solid #e5e7eb'
                                   }}>
                                     <input 
                                       type="checkbox"
                                       checked={editingData.selectedSocios[socio.id] || false}
                                       onChange={(e) => {
+                                        const newSelected = { ...editingData.selectedSocios, [socio.id]: e.target.checked };
+                                        const newAttendees = { ...editingData.attendeesCount };
+                                        if (e.target.checked && !newAttendees[socio.id]) {
+                                          newAttendees[socio.id] = 1;
+                                        }
                                         setEditingData(d => ({
                                           ...d,
-                                          selectedSocios: {
-                                            ...d.selectedSocios,
-                                            [socio.id]: e.target.checked
-                                          }
+                                          selectedSocios: newSelected,
+                                          attendeesCount: newAttendees
                                         }));
                                       }}
                                       style={{ width: 16, height: 16 }}
@@ -1770,34 +1921,88 @@ export default function TPV({ user, profile }) {
                                       flex: 1, 
                                       fontSize: 12, 
                                       color: '#374151',
-                                      fontWeight: editingData.selectedSocios[socio.id] ? 500 : 400
+                                      fontWeight: editingData.selectedSocios[socio.id] ? 600 : 400
                                     }}>
                                       {socio.alias || socio.nombre || socio.email}
                                     </label>
                                     {editingData.selectedSocios[socio.id] && (
-                                      <input 
-                                        type="number"
-                                        min="1"
-                                        value={editingData.attendeesCount[socio.id] || 1}
-                                        onChange={(e) => {
-                                          const val = Math.max(1, parseInt(e.target.value) || 1);
-                                          setEditingData(d => ({
-                                            ...d,
-                                            attendeesCount: {
-                                              ...d.attendeesCount,
-                                              [socio.id]: val
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const currentVal = editingData.attendeesCount[socio.id] || 1;
+                                            if (currentVal > 1) {
+                                              setEditingData(d => ({
+                                                ...d,
+                                                attendeesCount: {
+                                                  ...d.attendeesCount,
+                                                  [socio.id]: currentVal - 1
+                                                }
+                                              }));
                                             }
-                                          }));
-                                        }}
-                                        style={{ 
-                                          width: 50, 
-                                          padding: 4, 
+                                          }}
+                                          style={{
+                                            width: 26,
+                                            height: 26,
+                                            padding: 0,
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: '#fff',
+                                            backgroundColor: '#ef4444',
+                                            border: 'none',
+                                            borderRadius: 6,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                        >
+                                          −
+                                        </button>
+                                        <span style={{ 
+                                          minWidth: 32,
+                                          textAlign: 'center',
                                           fontSize: 12,
-                                          border: '1px solid #d1d5db',
+                                          fontWeight: 600,
+                                          color: '#1f2937',
+                                          backgroundColor: '#fff',
+                                          padding: '4px 6px',
                                           borderRadius: 4,
-                                          textAlign: 'center'
-                                        }}
-                                      />
+                                          border: '1px solid #d1d5db'
+                                        }}>
+                                          {editingData.attendeesCount[socio.id] || 1}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const currentVal = editingData.attendeesCount[socio.id] || 1;
+                                            setEditingData(d => ({
+                                              ...d,
+                                              attendeesCount: {
+                                                ...d.attendeesCount,
+                                                [socio.id]: currentVal + 1
+                                              }
+                                            }));
+                                          }}
+                                          style={{
+                                            width: 26,
+                                            height: 26,
+                                            padding: 0,
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: '#fff',
+                                            backgroundColor: '#10b981',
+                                            border: 'none',
+                                            borderRadius: 6,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
                                 ))}
