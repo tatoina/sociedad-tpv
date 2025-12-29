@@ -29,8 +29,7 @@ export default function Eventos({ user, profile }) {
   const [myRegistrations, setMyRegistrations] = useState([]);
   const [otherRegistrations, setOtherRegistrations] = useState([]);
   const [editingId, setEditingId] = useState(null);
-  const [showModalFecha, setShowModalFecha] = useState(false);
-  const [nuevaFechaCena, setNuevaFechaCena] = useState('');
+  const [expandedEvents, setExpandedEvents] = useState({});
   const nav = useNavigate();
 
   // Bloquear acceso a admin
@@ -295,70 +294,6 @@ export default function Eventos({ user, profile }) {
     setComensales(1);
     setDecimos(1);
     setTextoCena('');
-  };
-
-  const handleDeleteAllCumpleanos = async () => {
-    const password = prompt('Introduce la contraseña para borrar todas las inscripciones:');
-    
-    if (password !== '1234') {
-      alert('Contraseña incorrecta');
-      return;
-    }
-
-    // Mostrar modal para seleccionar fecha
-    setNuevaFechaCena('');
-    setShowModalFecha(true);
-  };
-
-  const confirmarBorradoConFecha = async () => {
-    if (!nuevaFechaCena) {
-      alert('Debes seleccionar una fecha para la cena');
-      return;
-    }
-
-    if (!confirm('¿Estás seguro de borrar TODAS las inscripciones de CUMPLEAÑOS MES?')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { setEventConfig } = await import('../firebase');
-      
-      // Guardar la fecha de la cena
-      await setEventConfig('CUMPLEAÑOS MES', { fechaCena: nuevaFechaCena });
-      
-      // Borrar todas las inscripciones
-      const count = await deleteAllEventRegistrationsByType('CUMPLEAÑOS MES');
-      
-      // Actualizar estado local
-      setFechaProximaCena(nuevaFechaCena);
-      setShowModalFecha(false);
-      setNuevaFechaCena('');
-      
-      alert(`Se han eliminado ${count} inscripciones.\nPróxima cena: ${formatearFecha(nuevaFechaCena)}\n\nEnviando notificaciones por email...`);
-      
-      // Enviar notificaciones por email (en segundo plano)
-      const notificarFechaCena = httpsCallable(functions, 'notificarFechaCena');
-      notificarFechaCena({
-        eventType: 'CUMPLEAÑOS MES',
-        fechaCena: nuevaFechaCena
-      })
-        .then(result => {
-          console.log('Resultado envío de emails:', result.data);
-          alert(`✅ ${result.data.message}`);
-        })
-        .catch(err => {
-          console.error('Error enviando emails:', err);
-          alert(`⚠️ Error al enviar algunos emails: ${err.message}`);
-        });
-      
-      loadRegistrations();
-    } catch (err) {
-      console.error('Error borrando inscripciones:', err);
-      alert('Error al borrar las inscripciones: ' + (err.message || err));
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (!user) {
@@ -772,36 +707,6 @@ export default function Eventos({ user, profile }) {
                     </button>
                   )}
                 </div>
-                
-                {/* Botón especial para borrar todas las inscripciones de CUMPLEAÑOS MES */}
-                {eventType === 'CUMPLEAÑOS MES' && !editingId && (
-                  <div style={{ marginTop: 16, padding: 16, background: '#fef3c7', borderRadius: 8, border: '2px solid #f59e0b' }}>
-                    <p style={{ margin: '0 0 12px 0', fontSize: 14, color: '#92400e', fontWeight: 600 }}>
-                      ⚠️ Administración de inscripciones
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleDeleteAllCumpleanos}
-                      style={{
-                        width: '100%',
-                        padding: '14px 24px',
-                        fontSize: 16,
-                        fontWeight: 700,
-                        background: '#dc2626',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        textTransform: 'uppercase'
-                      }}
-                    >
-                      🗑️ Borrar inscripciones de todos
-                    </button>
-                    <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#92400e' }}>
-                      Requiere contraseña. Eliminará todas las inscripciones de este evento.
-                    </p>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -824,313 +729,173 @@ export default function Eventos({ user, profile }) {
           }}>
             No tienes inscripciones todavía
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {myRegistrations.map(reg => (
-              <div
-                key={reg.id}
-                style={{
-                  background: '#fff',
-                  padding: 16,
-                  borderRadius: 12,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 16
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: '#1976d2', marginBottom: 4 }}>
-                    {reg.eventType}
-                  </div>
-                  
-                  {/* RESERVAR MESA */}
-                  {reg.eventType === 'RESERVAR MESA' && (
-                    <>
-                      <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
-                        📅 {reg.fecha} {reg.hora && `• 🕐 ${reg.hora}`}
-                      </div>
-                      <div style={{ fontSize: 14, color: '#6b7280' }}>
-                        🍽️ {reg.comensales} comensal{reg.comensales !== 1 ? 'es' : ''}
-                      </div>
-                      {reg.observaciones && (
-                        <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
-                          💬 {reg.observaciones}
+        ) : (() => {
+          // Agrupar por tipo de evento
+          const groupedByEvent = myRegistrations.reduce((acc, reg) => {
+            if (!acc[reg.eventType]) {
+              acc[reg.eventType] = [];
+            }
+            acc[reg.eventType].push(reg);
+            return acc;
+          }, {});
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {Object.entries(groupedByEvent).map(([eventType, registrations]) => {
+                const isExpanded = expandedEvents[eventType];
+                
+                return (
+                  <div key={eventType} style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Header colapsable */}
+                    <div
+                      onClick={() => setExpandedEvents(prev => ({
+                        ...prev,
+                        [eventType]: !prev[eventType]
+                      }))}
+                      style={{
+                        padding: 16,
+                        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 20 }}>{isExpanded ? '▼' : '▶'}</span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 16 }}>{eventType}</div>
+                          <div style={{ fontSize: 13, opacity: 0.9 }}>
+                            {registrations.length} inscripción{registrations.length !== 1 ? 'es' : ''}
+                          </div>
                         </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* CUMPLEAÑOS MES */}
-                  {reg.eventType === 'CUMPLEAÑOS MES' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* FIESTAS DE ESTELLA */}
-                  {reg.eventType === 'FIESTAS DE ESTELLA' && (
-                    <>
-                      <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
-                        📅 {reg.fecha} {reg.diaSemana && `(${reg.diaSemana})`}
                       </div>
-                      <div style={{ fontSize: 14, color: '#6b7280' }}>
-                        👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                    </div>
+
+                    {/* Contenido expandible */}
+                    {isExpanded && (
+                      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {registrations.map(reg => (
+                          <div
+                            key={reg.id}
+                            style={{
+                              background: '#f9fafb',
+                              padding: 16,
+                              borderRadius: 8,
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: 16
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              {/* RESERVAR MESA */}
+                              {reg.eventType === 'RESERVAR MESA' && (
+                                <>
+                                  <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
+                                    📅 {reg.fecha} {reg.hora && `• 🕐 ${reg.hora}`}
+                                  </div>
+                                  <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                    🍽️ {reg.comensales} comensal{reg.comensales !== 1 ? 'es' : ''}
+                                  </div>
+                                  {reg.observaciones && (
+                                    <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
+                                      💬 {reg.observaciones}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              {/* CUMPLEAÑOS MES */}
+                              {reg.eventType === 'CUMPLEAÑOS MES' && (
+                                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                  👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                </div>
+                              )}
+
+                              {/* FIESTAS DE ESTELLA */}
+                              {reg.eventType === 'FIESTAS DE ESTELLA' && (
+                                <>
+                                  <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
+                                    📅 {reg.fecha} {reg.diaSemana && `(${reg.diaSemana})`}
+                                  </div>
+                                  <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                    👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                  </div>
+                                </>
+                              )}
+
+                              {/* FERIAS */}
+                              {reg.eventType === 'FERIAS' && (
+                                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                  👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                </div>
+                              )}
+
+                              {/* LOTERIA NAVIDAD */}
+                              {reg.eventType === 'LOTERIA NAVIDAD' && (
+                                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                  🎟️ {reg.decimos} décimo{reg.decimos !== 1 ? 's' : ''}
+                                </div>
+                              )}
+
+                              {/* COTILLON DE REYES */}
+                              {reg.eventType === 'COTILLON DE REYES' && (
+                                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                  👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                onClick={() => handleEdit(reg)}
+                                style={{
+                                  padding: '8px 16px',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  background: '#f59e0b',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDelete(reg.id)}
+                                style={{
+                                  padding: '8px 16px',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  background: '#ef4444',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </>
-                  )}
-
-                  {/* FERIAS */}
-                  {reg.eventType === 'FERIAS' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* LOTERIA NAVIDAD */}
-                  {reg.eventType === 'LOTERIA NAVIDAD' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      🎟️ {reg.decimos} décimo{reg.decimos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* COTILLON DE REYES */}
-                  {reg.eventType === 'COTILLON DE REYES' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => handleEdit(reg)}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      background: '#f59e0b',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(reg.id)}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      background: '#ef4444',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* RESTO DE INSCRIPCIONES */}
-      <div>
-        <h3 style={{ marginBottom: 16, fontSize: 20, fontWeight: 600, color: '#6b7280' }}>
-          👥 Resto de inscripciones ({otherRegistrations.length})
-        </h3>
-        
-        {otherRegistrations.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: 40,
-            background: '#f9fafb',
-            borderRadius: 12,
-            color: '#6b7280'
-          }}>
-            No hay otras inscripciones todavía
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {otherRegistrations.map(reg => (
-              <div
-                key={reg.id}
-                style={{
-                  background: '#fff',
-                  padding: 16,
-                  borderRadius: 12,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  border: '2px solid #f3f4f6'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: '#1976d2' }}>
-                      {reg.eventType}
-                    </div>
-                    <div style={{ 
-                      fontSize: 12, 
-                      color: '#6b7280',
-                      fontWeight: 600,
-                      background: '#f3f4f6',
-                      padding: '4px 12px',
-                      borderRadius: 12
-                    }}>
-                      {reg.userName || reg.userEmail}
-                    </div>
+                    )}
                   </div>
-                  
-                  {/* RESERVAR MESA */}
-                  {reg.eventType === 'RESERVAR MESA' && (
-                    <>
-                      <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
-                        📅 {reg.fecha} {reg.hora && `• 🕐 ${reg.hora}`}
-                      </div>
-                      <div style={{ fontSize: 14, color: '#6b7280' }}>
-                        🍽️ {reg.comensales} comensal{reg.comensales !== 1 ? 'es' : ''}
-                      </div>
-                      {reg.observaciones && (
-                        <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
-                          💬 {reg.observaciones}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* CUMPLEAÑOS MES */}
-                  {reg.eventType === 'CUMPLEAÑOS MES' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* FIESTAS DE ESTELLA */}
-                  {reg.eventType === 'FIESTAS DE ESTELLA' && (
-                    <>
-                      <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
-                        📅 {reg.fecha} {reg.diaSemana && `(${reg.diaSemana})`}
-                      </div>
-                      <div style={{ fontSize: 14, color: '#6b7280' }}>
-                        👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                      </div>
-                    </>
-                  )}
-
-                  {/* FERIAS */}
-                  {reg.eventType === 'FERIAS' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* LOTERIA NAVIDAD */}
-                  {reg.eventType === 'LOTERIA NAVIDAD' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      🎟️ {reg.decimos} décimo{reg.decimos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-
-                  {/* COTILLON DE REYES */}
-                  {reg.eventType === 'COTILLON DE REYES' && (
-                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                      👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
-
-      {/* Modal para seleccionar fecha de cena */}
-      {showModalFecha && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: '#fff',
-            padding: 32,
-            borderRadius: 16,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-            maxWidth: 400,
-            width: '90%'
-          }}>
-            <h3 style={{ marginTop: 0, marginBottom: 20, fontSize: 20, fontWeight: 600 }}>
-              📅 Fecha de la próxima cena
-            </h3>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
-                Selecciona la fecha:
-              </label>
-              <input
-                type="date"
-                value={nuevaFechaCena}
-                onChange={(e) => setNuevaFechaCena(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  fontSize: 15,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowModalFecha(false);
-                  setNuevaFechaCena('');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  background: '#fff',
-                  color: '#374151',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarBorradoConFecha}
-                style={{
-                  padding: '10px 20px',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: '#ef4444',
-                  color: '#fff',
-                  cursor: 'pointer'
-                }}
-              >
-                Confirmar y Borrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

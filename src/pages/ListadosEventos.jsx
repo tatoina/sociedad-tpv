@@ -1,7 +1,9 @@
 // src/pages/Listados.jsx
 import React, { useState, useEffect } from 'react';
-import { getAllEventRegistrations } from '../firebase';
+import { getAllEventRegistrations, deleteAllEventRegistrationsByType } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 
 // Hook para detectar tamaño de pantalla
 const useIsMobile = () => {
@@ -66,6 +68,10 @@ export default function Listados({ user }) {
   const [filteredRegistrations, setFilteredRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFiestaDay, setSelectedFiestaDay] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showModalFechaCena, setShowModalFechaCena] = useState(false);
+  const [nuevaFechaCena, setNuevaFechaCena] = useState('');
   const nav = useNavigate();
   const isMobile = useIsMobile();
 
@@ -136,6 +142,143 @@ export default function Listados({ user }) {
       totalComensales,
       totalDecimos
     };
+  };
+
+  // Función especial para CUMPLEAÑOS MES (pide contraseña, luego fecha y envía emails)
+  const handleBorrarCumpleanosMes = () => {
+    // Mostrar modal de contraseña
+    setPassword('');
+    setShowPasswordModal(true);
+  };
+
+  const confirmarPasswordCumpleanosMes = () => {
+    // Verificar contraseña
+    if (password !== '123456') {
+      alert('❌ Contraseña incorrecta');
+      setShowPasswordModal(false);
+      setPassword('');
+      return;
+    }
+
+    // Cerrar modal de contraseña
+    setShowPasswordModal(false);
+    setPassword('');
+
+    // Confirmar acción
+    if (!confirm('¿Estás seguro de borrar TODAS las inscripciones de CUMPLEAÑOS MES?')) {
+      return;
+    }
+    
+    // Mostrar modal para seleccionar fecha
+    setNuevaFechaCena('');
+    setShowModalFechaCena(true);
+  };
+
+  const confirmarBorradoCumpleanosConFecha = async () => {
+    if (!nuevaFechaCena) {
+      alert('Debes seleccionar una fecha para la cena');
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de borrar TODAS las inscripciones de CUMPLEAÑOS MES?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { setEventConfig } = await import('../firebase');
+      
+      // Guardar la fecha de la cena
+      await setEventConfig('CUMPLEAÑOS MES', { fechaCena: nuevaFechaCena });
+      
+      // Borrar todas las inscripciones
+      const count = await deleteAllEventRegistrationsByType('CUMPLEAÑOS MES');
+      
+      // Cerrar modal
+      setShowModalFechaCena(false);
+      setNuevaFechaCena('');
+      
+      const formatearFecha = (fecha) => {
+        const [year, month, day] = fecha.split('-');
+        return `${day}/${month}/${year}`;
+      };
+
+      alert(`Se han eliminado ${count} inscripciones.\nPróxima cena: ${formatearFecha(nuevaFechaCena)}\n\nEnviando notificaciones por email...`);
+      
+      // Enviar notificaciones por email (en segundo plano)
+      const notificarFechaCena = httpsCallable(functions, 'notificarFechaCena');
+      notificarFechaCena({
+        eventType: 'CUMPLEAÑOS MES',
+        fechaCena: nuevaFechaCena
+      })
+        .then(result => {
+          console.log('Resultado envío de emails:', result.data);
+          alert(`✅ ${result.data.message}`);
+        })
+        .catch(err => {
+          console.error('Error enviando emails:', err);
+          alert(`⚠️ Error al enviar algunos emails: ${err.message}`);
+        });
+      
+      loadRegistrations();
+    } catch (err) {
+      console.error('Error borrando inscripciones:', err);
+      alert('Error al borrar las inscripciones: ' + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para otros eventos (pide contraseña)
+  const handleDeleteAllRegistrations = () => {
+    if (!selectedEvent) return;
+
+    // Mostrar modal de contraseña
+    setPassword('');
+    setShowPasswordModal(true);
+  };
+
+  const confirmDeleteWithPassword = async () => {
+    if (!password) {
+      alert('⚠️ Debes introducir la contraseña');
+      return;
+    }
+
+    // Cerrar modal
+    setShowPasswordModal(false);
+
+    // Confirmar acción
+    const confirmDelete = window.confirm(
+      `⚠️ ATENCIÓN: Se van a borrar TODAS las ${filteredRegistrations.length} inscripciones de ${selectedEvent}.\n\n¿Estás seguro de continuar?`
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+      const functions = getFunctions();
+      const borrarInscripcionesEvento = httpsCallable(functions, 'borrarInscripcionesEvento');
+      
+      const result = await borrarInscripcionesEvento({
+        eventType: selectedEvent,
+        password: password
+      });
+
+      if (result.data.success) {
+        alert(`✅ ${result.data.message}`);
+        // Recargar datos
+        await loadRegistrations();
+      }
+    } catch (error) {
+      console.error('Error al borrar inscripciones:', error);
+      if (error.code === 'functions/permission-denied') {
+        alert('❌ Contraseña incorrecta');
+      } else {
+        alert('❌ Error al borrar inscripciones: ' + error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const totals = calculateTotals();
@@ -318,65 +461,6 @@ export default function Listados({ user }) {
             </div>
           )}
 
-          {/* Resumen de totales para FERIAS */}
-          {selectedEvent === 'FERIAS' && totals && (
-            <div style={{
-              display: 'flex',
-              gap: 8,
-              marginTop: 20,
-              justifyContent: 'center'
-            }}>
-              <div style={{
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                color: '#fff',
-                padding: isMobile ? 12 : 20,
-                borderRadius: 12,
-                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
-                textAlign: 'center',
-                minWidth: isMobile ? 90 : 150,
-                flex: isMobile ? '1' : 'none'
-              }}>
-                <div style={{ fontSize: isMobile ? 10 : 13, opacity: 0.9, marginBottom: 6, fontWeight: 600 }}>
-                  👥 Adultos
-                </div>
-                <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 700 }}>{totals.totalAdultos}</div>
-              </div>
-
-              <div style={{
-                background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                color: '#fff',
-                padding: isMobile ? 12 : 20,
-                borderRadius: 12,
-                boxShadow: '0 4px 12px rgba(236, 72, 153, 0.3)',
-                textAlign: 'center',
-                minWidth: isMobile ? 90 : 150,
-                flex: isMobile ? '1' : 'none'
-              }}>
-                <div style={{ fontSize: isMobile ? 10 : 13, opacity: 0.9, marginBottom: 6, fontWeight: 600 }}>
-                  👶 Niños
-                </div>
-                <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 700 }}>{totals.totalNinos}</div>
-              </div>
-
-              <div style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff',
-                padding: isMobile ? 12 : 20,
-                borderRadius: 12,
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                textAlign: 'center',
-                border: '3px solid rgba(255,255,255,0.3)',
-                minWidth: isMobile ? 90 : 150,
-                flex: isMobile ? '1' : 'none'
-              }}>
-                <div style={{ fontSize: isMobile ? 10 : 13, opacity: 0.9, marginBottom: 6, fontWeight: 700 }}>
-                  TOTAL
-                </div>
-                <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 700 }}>{totals.totalGeneral}</div>
-              </div>
-            </div>
-          )}
-
           {/* Resumen de totales para FIESTAS DE ESTELLA */}
           {selectedFiestaDay && totals && (
             <div style={{
@@ -446,8 +530,8 @@ export default function Listados({ user }) {
 
       {!loading && selectedEvent && totals && (
         <>
-          {/* Resumen de totales - Oculto para RESERVAR MESA, CUMPLEAÑOS MES, FIESTAS DE ESTELLA, LOTERIA NAVIDAD y COTILLON DE REYES */}
-          {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FIESTAS DE ESTELLA' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' && (
+          {/* Resumen de totales - Oculto para RESERVAR MESA, CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, LOTERIA NAVIDAD y COTILLON DE REYES */}
+          {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FIESTAS DE ESTELLA' && selectedEvent !== 'FERIAS' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' && (
           <div style={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             padding: 24,
@@ -567,11 +651,62 @@ export default function Listados({ user }) {
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             overflowX: 'auto'
           }}>
-            {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FERIAS' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' && (
-            <h3 style={{ margin: '0 0 20px 0', fontSize: isMobile ? 18 : 20, fontWeight: 600, color: '#374151' }}>
-              👥 Lista de inscritos ({filteredRegistrations.length})
-            </h3>
-            )}
+            {/* Título con botón de borrar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+              flexWrap: 'wrap',
+              gap: 12
+            }}>
+              {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FERIAS' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' ? (
+                <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 20, fontWeight: 600, color: '#374151' }}>
+                  👥 Lista de inscritos
+                </h3>
+              ) : (
+                <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 24, fontWeight: 700, color: '#111827' }}>
+                  📋 {selectedEvent}
+                </h3>
+              )}
+
+              {/* Botón BORRAR INSCRIPCIONES - Solo visible si hay registros */}
+              {selectedEvent && filteredRegistrations.length > 0 && (
+                <button
+                  onClick={selectedEvent === 'CUMPLEAÑOS MES' ? handleBorrarCumpleanosMes : handleDeleteAllRegistrations}
+                  disabled={loading}
+                  style={{
+                    background: loading ? '#94a3b8' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: isMobile ? '8px 16px' : '10px 20px',
+                    borderRadius: '8px',
+                    fontSize: isMobile ? 12 : 14,
+                    fontWeight: 700,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.transform = 'scale(1)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.3)';
+                    }
+                  }}
+                >
+                  🗑️ {loading ? 'BORRANDO...' : 'BORRAR INSCRIPCIONES'}
+                </button>
+              )}
+            </div>
 
             {/* Vista MÓVIL - Tabla compacta para RESERVAR MESA y CUMPLEAÑOS MES, Cards para otros */}
             {isMobile ? (
@@ -642,6 +777,64 @@ export default function Listados({ user }) {
                 </div>
               ) : selectedEvent === 'CUMPLEAÑOS MES' ? (
                 /* Tabla compacta para CUMPLEAÑOS MES en móvil */
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 10
+                  }}>
+                    <thead>
+                      <tr style={{
+                        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                        color: '#fff'
+                      }}>
+                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>#</th>
+                        <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Usuario</th>
+                        <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Fecha Insc.</th>
+                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Adultos</th>
+                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Niños</th>
+                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRegistrations.map((reg, index) => (
+                        <tr
+                          key={reg.id}
+                          style={{
+                            background: index % 2 === 0 ? '#f9fafb' : '#fff',
+                            borderBottom: '1px solid #e5e7eb'
+                          }}
+                        >
+                          <td style={{ padding: '6px 4px', fontWeight: 600, color: '#1976d2', textAlign: 'center', fontSize: 10 }}>
+                            {index + 1}
+                          </td>
+                          <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
+                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                          </td>
+                          <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
+                            {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }).replace(',', '') : '-'}
+                          </td>
+                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#1976d2', fontSize: 10 }}>
+                            {reg.adultos || 0}
+                          </td>
+                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#7c3aed', fontSize: 10 }}>
+                            {reg.ninos || 0}
+                          </td>
+                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 700, color: '#059669', fontSize: 10 }}>
+                            {(reg.adultos || 0) + (reg.ninos || 0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : selectedEvent === 'FERIAS' ? (
+                /* Tabla compacta para FERIAS en móvil */
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{
                     width: '100%',
@@ -1257,61 +1450,108 @@ export default function Listados({ user }) {
             )}
           </div>
 
-          {/* Resumen de totales debajo de la tabla solo para CUMPLEAÑOS MES */}
-          {selectedEvent === 'CUMPLEAÑOS MES' && (
+          {/* Resumen de totales debajo de la tabla para FERIAS */}
+          {selectedEvent === 'FERIAS' && (
             <div style={{
-              display: 'flex',
-              gap: 8,
-              marginTop: 20,
-              justifyContent: 'center'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 20,
+              marginTop: 24
             }}>
               <div style={{
                 background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                 color: '#fff',
-                padding: isMobile ? 12 : 24,
-                borderRadius: 12,
+                padding: 24,
+                borderRadius: 16,
                 boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
-                textAlign: 'center',
-                minWidth: isMobile ? 90 : 140,
-                flex: isMobile ? '1' : 'none'
+                textAlign: 'center'
               }}>
-                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 6, fontWeight: 600 }}>
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 600 }}>
                   👥 Adultos
                 </div>
-                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 700 }}>{totals.totalAdultos}</div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalAdultos}</div>
               </div>
 
               <div style={{
                 background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
                 color: '#fff',
-                padding: isMobile ? 12 : 24,
-                borderRadius: 12,
+                padding: 24,
+                borderRadius: 16,
                 boxShadow: '0 4px 12px rgba(236, 72, 153, 0.3)',
-                textAlign: 'center',
-                minWidth: isMobile ? 90 : 140,
-                flex: isMobile ? '1' : 'none'
+                textAlign: 'center'
               }}>
-                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 6, fontWeight: 600 }}>
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 600 }}>
                   👶 Niños
                 </div>
-                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 700 }}>{totals.totalNinos}</div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalNinos}</div>
               </div>
 
               <div style={{
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: '#fff',
-                padding: isMobile ? 12 : 24,
-                borderRadius: 12,
+                padding: 24,
+                borderRadius: 16,
                 boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
                 textAlign: 'center',
-                border: '3px solid rgba(255,255,255,0.3)',
-                minWidth: isMobile ? 90 : 140,
-                flex: isMobile ? '1' : 'none'
+                border: '3px solid rgba(255,255,255,0.3)'
               }}>
-                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 6, fontWeight: 700 }}>
-                  TOTAL
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 700 }}>
+                  TOTAL PERSONAS
                 </div>
-                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 700 }}>{totals.totalGeneral}</div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalGeneral}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Resumen de totales debajo de la tabla solo para CUMPLEAÑOS MES */}
+          {selectedEvent === 'CUMPLEAÑOS MES' && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 20,
+              marginTop: 24
+            }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                color: '#fff',
+                padding: 24,
+                borderRadius: 16,
+                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 600 }}>
+                  👥 Adultos
+                </div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalAdultos}</div>
+              </div>
+
+              <div style={{
+                background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                color: '#fff',
+                padding: 24,
+                borderRadius: 16,
+                boxShadow: '0 4px 12px rgba(236, 72, 153, 0.3)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 600 }}>
+                  👶 Niños
+                </div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalNinos}</div>
+              </div>
+
+              <div style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                padding: 24,
+                borderRadius: 16,
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                textAlign: 'center',
+                border: '3px solid rgba(255,255,255,0.3)'
+              }}>
+                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 700 }}>
+                  TOTAL PERSONAS
+                </div>
+                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalGeneral}</div>
               </div>
             </div>
           )}
@@ -1324,20 +1564,6 @@ export default function Listados({ user }) {
               gap: 20,
               marginTop: 24
             }}>
-              <div style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                color: '#fff',
-                padding: 24,
-                borderRadius: 16,
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8, fontWeight: 600 }}>
-                  Inscritos
-                </div>
-                <div style={{ fontSize: 40, fontWeight: 700 }}>{totals.totalInscripciones}</div>
-              </div>
-
               <div style={{
                 background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                 color: '#fff',
@@ -1436,6 +1662,185 @@ export default function Listados({ user }) {
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>
             Selecciona un evento para ver el listado
+          </div>
+        </div>
+      )}
+
+      {/* Modal de contraseña */}
+      {showPasswordModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff',
+            padding: 32,
+            borderRadius: 16,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            maxWidth: 400,
+            width: '90%'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              🔒 Introduce la contraseña
+            </h3>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmDeleteWithPassword();
+                if (e.key === 'Escape') {
+                  setShowPasswordModal(false);
+                  setPassword('');
+                }
+              }}
+              placeholder="Contraseña"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: 12,
+                fontSize: 16,
+                border: '2px solid #d1d5db',
+                borderRadius: 8,
+                marginBottom: 20,
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPassword('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={selectedEvent === 'CUMPLEAÑOS MES' ? confirmarPasswordCumpleanosMes : confirmDeleteWithPassword}
+                style={{
+                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de fecha para CUMPLEAÑOS MES */}
+      {showModalFechaCena && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff',
+            padding: 32,
+            borderRadius: 16,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            maxWidth: 400,
+            width: '90%'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              📅 Fecha de la próxima cena
+            </h3>
+            <p style={{ marginBottom: 20, color: '#6b7280', fontSize: 14 }}>
+              Selecciona la fecha de la próxima cena de CUMPLEAÑOS MES. Se borrarán todas las inscripciones actuales y se enviará un email a todos los socios.
+            </p>
+            <input
+              type="date"
+              value={nuevaFechaCena}
+              onChange={(e) => setNuevaFechaCena(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmarBorradoCumpleanosConFecha();
+                if (e.key === 'Escape') {
+                  setShowModalFechaCena(false);
+                  setNuevaFechaCena('');
+                }
+              }}
+              autoFocus
+              style={{
+                width: '100%',
+                padding: 12,
+                fontSize: 16,
+                border: '2px solid #d1d5db',
+                borderRadius: 8,
+                marginBottom: 20,
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowModalFechaCena(false);
+                  setNuevaFechaCena('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarBorradoCumpleanosConFecha}
+                disabled={!nuevaFechaCena}
+                style={{
+                  padding: '10px 20px',
+                  background: nuevaFechaCena ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : '#d1d5db',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: nuevaFechaCena ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Confirmar y Enviar Emails
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -71,8 +71,17 @@ exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
       fechaFormateada = `${diaSemana} ${dia}/${mes}/${año}`;
     }
 
-    // Preparar email
-    const emailPromises = usersWithEmail.map(async (user) => {
+    // Preparar email - Enviar con delay para evitar rate limiting de Gmail
+    const results = [];
+    
+    for (let i = 0; i < usersWithEmail.length; i++) {
+      const user = usersWithEmail[i];
+      
+      // Agregar delay de 300ms entre emails para evitar rate limiting
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
       const mailOptions = {
         from: functions.config().gmail.email,
         to: user.email,
@@ -180,14 +189,13 @@ exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
       try {
         await transporter.sendMail(mailOptions);
         console.log(`Email enviado a ${user.email}`);
-        return { success: true, email: user.email };
+        results.push({ status: 'fulfilled', value: { success: true, email: user.email } });
       } catch (error) {
         console.error(`Error enviando email a ${user.email}:`, error);
-        return { success: false, email: user.email, error: error.message };
+        results.push({ status: 'rejected', value: { success: false, email: user.email, error: error.message } });
       }
-    });
+    }
 
-    const results = await Promise.allSettled(emailPromises);
     const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const failed = results.length - successful;
 
@@ -1050,3 +1058,307 @@ exports.notificarReservaMesa = functions.https.onCall(async (data, context) => {
   }
 });
 
+// Función para notificar inscripción a eventos
+exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, context) => {
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { userName, userEmail, eventType, adultos, ninos, decimos, fecha, diaSemana } = data;
+
+  if (!userName || !eventType) {
+    throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos');
+  }
+
+  try {
+    // Obtener todos los usuarios
+    const usersSnapshot = await admin.firestore().collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filtrar usuarios que tengan email y excluir admin@admin.es
+    const usersWithEmail = users.filter(user => user.email && user.email !== 'admin@admin.es');
+
+    console.log(`Enviando emails a ${usersWithEmail.length} usuarios sobre inscripción de ${userName} a ${eventType}`);
+
+    const transporter = getEmailTransporter();
+    
+    if (!transporter) {
+      throw new functions.https.HttpsError('failed-precondition', 'Configuración de email no disponible');
+    }
+
+    // Formatear fecha si existe
+    let fechaFormateada = fecha;
+    if (fecha && fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const date = new Date(fecha + 'T00:00:00');
+      const dia = date.getDate();
+      const mes = date.getMonth() + 1;
+      const año = date.getFullYear();
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const diaSemanaCalculado = dias[date.getDay()];
+      fechaFormateada = `${diaSemanaCalculado} ${dia}/${mes}/${año}`;
+    }
+
+    // Determinar emoji según el evento
+    let emoji = '🎉';
+    let color = '#1976d2';
+    let colorSecundario = '#1565c0';
+    switch(eventType) {
+      case 'CUMPLEAÑOS MES':
+        emoji = '🎂';
+        color = '#f59e0b';
+        colorSecundario = '#d97706';
+        break;
+      case 'FIESTAS DE ESTELLA':
+        emoji = '🎊';
+        color = '#8b5cf6';
+        colorSecundario = '#7c3aed';
+        break;
+      case 'FERIAS':
+        emoji = '🎪';
+        color = '#ec4899';
+        colorSecundario = '#db2777';
+        break;
+      case 'LOTERIA NAVIDAD':
+        emoji = '🎟️';
+        color = '#10b981';
+        colorSecundario = '#059669';
+        break;
+      case 'COTILLON DE REYES':
+        emoji = '👑';
+        color = '#6366f1';
+        colorSecundario = '#4f46e5';
+        break;
+    }
+
+    // Preparar emails
+    const emailPromises = usersWithEmail.map(async (user) => {
+      const mailOptions = {
+        from: functions.config().gmail.email,
+        to: user.email,
+        subject: `${emoji} Nueva Inscripción - ${eventType}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f9f9f9;
+              }
+              .header {
+                background: linear-gradient(135deg, ${color} 0%, ${colorSecundario} 100%);
+                color: white;
+                padding: 30px 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+              }
+              .content {
+                background: white;
+                padding: 30px;
+                border-radius: 0 0 8px 8px;
+              }
+              .event-box {
+                background: #e0f2fe;
+                border: 2px solid ${color};
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+              }
+              .detail-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .detail-label {
+                font-weight: 600;
+                color: #374151;
+              }
+              .detail-value {
+                color: ${color};
+                font-weight: 500;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 12px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">${emoji} Sociedad TPV</h1>
+                <p style="margin: 10px 0 0 0;">Nueva Inscripción</p>
+              </div>
+              <div class="content">
+                <div class="event-box">
+                  <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
+                  <div style="font-size: 20px; font-weight: 700; color: ${colorSecundario};">${eventType}</div>
+                  <div style="margin-top: 15px; font-size: 18px; font-weight: 600; color: ${color};">
+                    ${userName}
+                  </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                  ${(adultos !== undefined || ninos !== undefined) ? `
+                    ${adultos !== undefined ? `
+                      <div class="detail-row">
+                        <span class="detail-label">👥 Adultos:</span>
+                        <span class="detail-value">${adultos}</span>
+                      </div>
+                    ` : ''}
+                    ${ninos !== undefined ? `
+                      <div class="detail-row">
+                        <span class="detail-label">👶 Niños:</span>
+                        <span class="detail-value">${ninos}</span>
+                      </div>
+                    ` : ''}
+                    ${(adultos !== undefined && ninos !== undefined) ? `
+                      <div class="detail-row">
+                        <span class="detail-label">📊 Total:</span>
+                        <span class="detail-value" style="font-weight: 700;">${adultos + ninos}</span>
+                      </div>
+                    ` : ''}
+                  ` : ''}
+                  ${decimos !== undefined ? `
+                    <div class="detail-row">
+                      <span class="detail-label">🎟️ Décimos:</span>
+                      <span class="detail-value">${decimos}</span>
+                    </div>
+                  ` : ''}
+                  ${fecha && fechaFormateada ? `
+                    <div class="detail-row">
+                      <span class="detail-label">📅 Fecha:</span>
+                      <span class="detail-value">${fechaFormateada}${diaSemana ? ` (${diaSemana})` : ''}</span>
+                    </div>
+                  ` : ''}
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="https://sociedad-tpv.web.app" style="display: inline-block; padding: 15px 30px; background: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                    Ver en la Aplicación
+                  </a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>Este es un email automático, por favor no respondas a este mensaje.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Email enviado a ${user.email}`);
+        return { success: true, email: user.email };
+      } catch (error) {
+        console.error(`Error enviando email a ${user.email}:`, error);
+        return { success: false, email: user.email, error: error.message };
+      }
+    });
+
+    const results = await Promise.allSettled(emailPromises);
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.length - successful;
+
+    console.log(`Emails enviados: ${successful} exitosos, ${failed} fallidos`);
+
+    return {
+      success: true,
+      message: `Emails enviados: ${successful} exitosos, ${failed} fallidos`,
+      successful,
+      failed
+    };
+
+  } catch (error) {
+    console.error('Error en notificarInscripcionEventoGeneral:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+// Función para borrar todas las inscripciones de un evento
+exports.borrarInscripcionesEvento = functions.https.onCall(async (data, context) => {
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { eventType, password } = data;
+
+  if (!eventType || !password) {
+    throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos');
+  }
+
+  // Verificar contraseña
+  if (password !== '123456') {
+    throw new functions.https.HttpsError('permission-denied', 'Contraseña incorrecta');
+  }
+
+  try {
+    // Obtener todas las inscripciones del evento
+    const snapshot = await admin.firestore()
+      .collection('eventRegistrations')
+      .where('eventType', '==', eventType)
+      .get();
+
+    if (snapshot.empty) {
+      return {
+        success: true,
+        message: 'No hay inscripciones para borrar',
+        deleted: 0
+      };
+    }
+
+    // Borrar en lotes (máximo 500 por batch)
+    const batchSize = 500;
+    const batches = [];
+    let batch = admin.firestore().batch();
+    let count = 0;
+
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+
+      if (count === batchSize) {
+        batches.push(batch.commit());
+        batch = admin.firestore().batch();
+        count = 0;
+      }
+    });
+
+    // Commit del último batch si tiene documentos
+    if (count > 0) {
+      batches.push(batch.commit());
+    }
+
+    await Promise.all(batches);
+
+    console.log(`Borradas ${snapshot.size} inscripciones de ${eventType} por usuario ${context.auth.uid}`);
+
+    return {
+      success: true,
+      message: `Se borraron ${snapshot.size} inscripciones`,
+      deleted: snapshot.size
+    };
+
+  } catch (error) {
+    console.error('Error en borrarInscripcionesEvento:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
