@@ -105,6 +105,15 @@ export default function Eventos({ user, profile }) {
     return fechaStr;
   };
 
+  // Establecer fecha por defecto para FIESTAS DE ESTELLA (agosto del año actual)
+  useEffect(() => {
+    if (eventType === 'FIESTAS DE ESTELLA' && !editingId && !fecha) {
+      const currentYear = new Date().getFullYear();
+      const defaultDate = `${currentYear}-08-01`; // 1 de agosto del año actual
+      setFecha(defaultDate);
+    }
+  }, [eventType]);
+
   // Cargar todas las inscripciones y fecha de próxima cena
   useEffect(() => {
     if (user?.uid) {

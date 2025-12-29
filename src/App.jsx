@@ -523,7 +523,35 @@ export default function App() {
                       </button>
                     )}
 
-                    {/* 4. Listados TPV */}
+                    {/* 4. Listado Eventos (solo para no-admin) */}
+                    {!profile?.isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          nav('/listados-eventos');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: theme.text,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          borderBottom: `1px solid ${theme.primary}20`
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        📊 Listado Eventos
+                      </button>
+                    )}
+
+                    {/* 5. Listados TPV */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -549,7 +577,7 @@ export default function App() {
                       {profile?.isAdmin ? '📊 Listados TPV' : '📊 Mis Gastos'}
                     </button>
 
-                    {/* 5. Cambiar perfil (incluye foto, contraseña y todos los datos) */}
+                    {/* 6. Cambiar perfil (incluye foto, contraseña y todos los datos) */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -575,7 +603,7 @@ export default function App() {
                       👤 Cambiar perfil
                     </button>
 
-                    {/* 6. Sugerencias app */}
+                    {/* 7. Sugerencias app */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -601,7 +629,7 @@ export default function App() {
                       💡 Sugerencias app
                     </button>
 
-                    {/* 7. Cerrar sesión */}
+                    {/* 8. Cerrar sesión */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
