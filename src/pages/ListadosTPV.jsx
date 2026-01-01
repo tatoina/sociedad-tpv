@@ -54,9 +54,7 @@ export default function ListadosTPV({ user, profile }) {
     if (user?.uid) {
       loadExpenses();
       loadSocios();
-      if (profile?.isAdmin) {
-        cargarHistorial();
-      }
+      cargarHistorial(); // Todos los usuarios autenticados pueden ver el historial
     }
   }, [user, profile]);
 
@@ -924,17 +922,20 @@ export default function ListadosTPV({ user, profile }) {
       );
       
       const snapshot = await getDocs(q);
-      const historial = snapshot.docs.map(doc => ({
-        id: doc.id,
-        fecha: doc.data().fecha?.toDate?.()?.toLocaleString('es-ES') || doc.data().fecha,
-        archivo: doc.data().nombreArchivo,
-        gastoTPV: doc.data().totalTPV,
-        gastoSociedad: doc.data().totalSociedad,
-        total: doc.data().totalGeneral,
-        tipo: doc.data().tipo === 'automatico' ? 'Automático' : 'Manual',
-        url: doc.data().url,
-        anio: doc.data().anio
-      }));
+      const historial = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          fecha: data.fecha?.toDate?.()?.toLocaleString('es-ES') || data.fecha,
+          archivo: data.nombreArchivo,
+          gastoTPV: data.totalTPV || 0,
+          gastoSociedad: data.totalSociedad || 0,
+          total: data.totalGeneral || 0,
+          tipo: data.tipo === 'automatico' ? 'Automático' : 'Manual',
+          url: data.url,
+          anio: data.anio
+        };
+      });
       
       setHistorialDescargas(historial);
       
