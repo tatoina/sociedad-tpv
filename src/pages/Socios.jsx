@@ -35,6 +35,7 @@ export default function Socios({ user, profile }) {
       lastName: u.lastName || "",
       phone: u.phone || "",
       birthDate: u.birthDate || "",
+      alias: u.alias || "",
       isAdmin: u.isAdmin || false,
       email: u.email || ""
     });
@@ -90,7 +91,8 @@ export default function Socios({ user, profile }) {
       (u.name || "").toLowerCase().includes(searchLower) ||
       (u.lastName || "").toLowerCase().includes(searchLower) ||
       (u.email || "").toLowerCase().includes(searchLower) ||
-      (u.phone || "").toLowerCase().includes(searchLower)
+      (u.phone || "").toLowerCase().includes(searchLower) ||
+      (u.alias || "").toLowerCase().includes(searchLower)
     );
   });
 
@@ -210,6 +212,11 @@ export default function Socios({ user, profile }) {
                     <div style={{fontWeight: "bold"}}>
                       {u.name || "Sin nombre"} {u.lastName || ""}
                     </div>
+                    {u.alias && (
+                      <div style={{fontSize: 13, color: "#f59e0b", fontWeight: 600, marginTop: 2}}>
+                        Alias: {u.alias}
+                      </div>
+                    )}
                     <div style={{fontSize: 12, color: "#666"}}>
                       {u.email}
                     </div>
@@ -384,6 +391,24 @@ export default function Socios({ user, profile }) {
                 type="tel"
                 value={editingUser.phone}
                 onChange={(e) => setEditingUser({...editingUser, phone: e.target.value})}
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  border: "1px solid #ddd",
+                  borderRadius: 4
+                }}
+              />
+            </div>
+
+            <div style={{marginBottom: 12}}>
+              <label style={{display: "block", marginBottom: 4, fontWeight: "bold"}}>
+                Alias:
+              </label>
+              <input
+                type="text"
+                value={editingUser.alias}
+                onChange={(e) => setEditingUser({...editingUser, alias: e.target.value})}
+                placeholder="Nombre corto para mostrar en el TPV"
                 style={{
                   width: "100%",
                   padding: 8,

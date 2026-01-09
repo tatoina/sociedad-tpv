@@ -1,6 +1,6 @@
 // src/pages/Eventos.jsx
 import React, { useState, useEffect } from 'react';
-import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType } from '../firebase';
+import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType, getGlobalConfig, addTemporaryEvent, getTemporaryEvents } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
@@ -25,11 +25,21 @@ export default function Eventos({ user, profile }) {
   const [decimos, setDecimos] = useState(1);
   const [textoCena, setTextoCena] = useState('');
   const [fechaProximaCena, setFechaProximaCena] = useState('');
+  const [tipoComida, setTipoComida] = useState('COMIDA');
+  const [tipoEventoConfig, setTipoEventoConfig] = useState('CENA');
   const [loading, setLoading] = useState(false);
   const [myRegistrations, setMyRegistrations] = useState([]);
   const [otherRegistrations, setOtherRegistrations] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [expandedEvents, setExpandedEvents] = useState({});
+  
+  // Estados para eventos temporales
+  const [temporaryEvents, setTemporaryEvents] = useState([]);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [newEventTitulo, setNewEventTitulo] = useState('');
+  const [newEventFecha, setNewEventFecha] = useState('');
+  const [newEventTipoComida, setNewEventTipoComida] = useState('COMIDA');
+  
   const nav = useNavigate();
 
   // Bloquear acceso a admin
@@ -111,13 +121,24 @@ export default function Eventos({ user, profile }) {
       const defaultDate = `${currentYear}-08-01`; // 1 de agosto del año actual
       setFecha(defaultDate);
     }
-  }, [eventType]);
+    
+    // Establecer fecha y tipo de comida para eventos temporales
+    if (eventType.startsWith('TEMP_') && !editingId) {
+      const tempEventId = eventType.replace('TEMP_', '');
+      const tempEvent = temporaryEvents.find(e => e.id === tempEventId);
+      if (tempEvent) {
+        setFecha(tempEvent.fecha);
+        setTipoComida(tempEvent.tipoComida);
+      }
+    }
+  }, [eventType, temporaryEvents]);
 
   // Cargar todas las inscripciones y fecha de próxima cena
   useEffect(() => {
     if (user?.uid) {
       loadRegistrations();
       loadFechaProximaCena();
+      loadTemporaryEvents();
     }
   }, [user]);
 
@@ -136,6 +157,15 @@ export default function Eventos({ user, profile }) {
     }
   };
 
+  const loadTemporaryEvents = async () => {
+    try {
+      const events = await getTemporaryEvents();
+      setTemporaryEvents(events);
+    } catch (err) {
+      console.error('Error cargando eventos temporales:', err);
+    }
+  };
+
   const loadFechaProximaCena = async () => {
     try {
       const { getEventConfig } = await import('../firebase');
@@ -143,9 +173,92 @@ export default function Eventos({ user, profile }) {
       if (config?.fechaCena) {
         setFechaProximaCena(config.fechaCena);
       }
+      if (config?.tipoComida) {
+        setTipoEventoConfig(config.tipoComida);
+      }
     } catch (err) {
       console.error('Error cargando fecha de cena:', err);
     }
+  };
+
+  const handleCreateTemporaryEvent = async () => {
+    if (!newEventTitulo || !newEventFecha) {
+      alert('Por favor completa el título y la fecha del evento');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await addTemporaryEvent({
+        titulo: newEventTitulo,
+        fecha: newEventFecha,
+        tipoComida: newEventTipoComida
+      });
+      
+      alert(`Evento "${newEventTitulo}" creado correctamente`);
+      
+      // Enviar notificación por email en segundo plano
+      (async () => {
+        try {
+          const config = await getGlobalConfig();
+          
+          if (config.emailsEnabled !== false) {
+            console.log('📧 Enviando notificación de nuevo evento temporal...', {
+              eventId: result.id,
+              titulo: newEventTitulo,
+              fecha: newEventFecha,
+              tipoComida: newEventTipoComida
+            });
+            
+            const notificarEvento = httpsCallable(functions, 'notificarNuevoEventoTemporal');
+            const emailResult = await notificarEvento({
+              eventId: result.id,
+              titulo: newEventTitulo,
+              fecha: newEventFecha,
+              tipoComida: newEventTipoComida
+            });
+            
+            console.log('✅ Notificación de nuevo evento enviada:', emailResult.data);
+          } else {
+            console.log('⚠️ Emails desactivados - no se envió notificación');
+          }
+        } catch (emailError) {
+          console.error('❌ Error enviando notificación (no afecta la creación del evento):', emailError);
+        }
+      })();
+      
+      // Limpiar campos
+      setNewEventTitulo('');
+      setNewEventFecha('');
+      setNewEventTipoComida('COMIDA');
+      setShowCreateEventModal(false);
+      
+      // Recargar eventos temporales
+      await loadTemporaryEvents();
+    } catch (err) {
+      console.error('Error creando evento temporal:', err);
+      alert('Error al crear el evento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEventTypeChange = (value) => {
+    if (value === 'CREAR_EVENTO') {
+      setShowCreateEventModal(true);
+      setEventType('');
+    } else {
+      setEventType(value);
+    }
+  };
+
+  const getEventDisplayName = (eventType) => {
+    if (eventType.startsWith('TEMP_')) {
+      const tempEventId = eventType.replace('TEMP_', '');
+      const tempEvent = temporaryEvents.find(e => e.id === tempEventId);
+      return tempEvent ? tempEvent.titulo : eventType;
+    }
+    return eventType;
   };
 
   const handleSubmit = async (e) => {
@@ -177,10 +290,43 @@ export default function Eventos({ user, profile }) {
         alert('Por favor selecciona una fecha');
         return;
       }
+    } else if (eventType.startsWith('TEMP_')) {
+      // Validación para eventos temporales
+      if (!adultos || Number(adultos) === 0) {
+        alert('Por favor indica al menos 1 adulto');
+        return;
+      }
     }
 
     setLoading(true);
     try {
+      // Verificar si el usuario ya tiene una inscripción en este evento (excepto RESERVAR MESA)
+      if (!editingId && eventType !== 'RESERVAR MESA') {
+        // Para FIESTAS DE ESTELLA y eventos temporales: solo bloquear si existe inscripción del mismo día Y tipo de comida
+        if (eventType === 'FIESTAS DE ESTELLA' || eventType.startsWith('TEMP_')) {
+          const existingRegistration = myRegistrations.find(
+            reg => reg.eventType === eventType && 
+                   reg.fecha === fecha && 
+                   reg.tipoComida === tipoComida
+          );
+          if (existingRegistration) {
+            alert('⚠️ Ya tienes una inscripción para este día y tipo de comida.\n\nPuedes editarla o borrarla desde la lista de "Mis Inscripciones" más abajo.');
+            setLoading(false);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            return;
+          }
+        } else {
+          // Para otros eventos: bloquear si ya existe cualquier inscripción
+          const existingRegistration = myRegistrations.find(reg => reg.eventType === eventType);
+          if (existingRegistration) {
+            alert('⚠️ Ya tienes una inscripción en este evento.\n\nPuedes editarla o borrarla desde la lista de "Mis Inscripciones" más abajo.');
+            setLoading(false);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+      
       const registrationData = {
         uid: user.uid,
         userEmail: user.email,
@@ -188,12 +334,13 @@ export default function Eventos({ user, profile }) {
         eventType,
         fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(eventType) ? null : fecha,
         hora: hora || null,
-        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) ? Number(adultos) : 0,
-        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) ? Number(ninos) : 0,
+        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
+        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
         comensales: eventType === 'RESERVAR MESA' ? Number(comensales) : 0,
         observaciones: eventType === 'RESERVAR MESA' ? observaciones : '',
         decimos: eventType === 'LOTERIA NAVIDAD' ? Number(decimos) : 0,
-        diaSemana: eventType === 'FIESTAS DE ESTELLA' ? getDayOfWeek(fecha) : ''
+        diaSemana: eventType === 'FIESTAS DE ESTELLA' ? getDayOfWeek(fecha) : '',
+        tipoComida: eventType === 'CUMPLEAÑOS MES' ? tipoEventoConfig : (eventType === 'FIESTAS DE ESTELLA' || eventType.startsWith('TEMP_') ? tipoComida : '')
       };
 
       if (editingId) {
@@ -202,37 +349,69 @@ export default function Eventos({ user, profile }) {
         setEditingId(null);
       } else {
         await addEventRegistration(registrationData);
+        alert('Inscripción registrada correctamente');
         
-        // Enviar notificación por email solo para reservas de mesa
-        if (eventType === 'RESERVAR MESA') {
+        // Enviar notificación por email en segundo plano (sin esperar)
+        (async () => {
           try {
-            console.log('📧 Enviando notificación de reserva de mesa...', {
-              userName: profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario',
-              userEmail: user?.email || '',
-              fecha: fecha,
-              hora: hora,
-              comensales: comensales,
-              observaciones: observaciones
-            });
+            // Verificar si los emails están activados
+            const config = await getGlobalConfig();
             
-            const notificarReserva = httpsCallable(functions, 'notificarReservaMesa');
-            const result = await notificarReserva({
-              userName: profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario',
-              userEmail: user?.email || '',
-              fecha: fecha,
-              hora: hora,
-              comensales: comensales,
-              observaciones: observaciones
-            });
-            
-            console.log('✅ Notificación de reserva enviada:', result.data);
+            if (config.emailsEnabled !== false) {
+              const userName = profile?.nombre || profile?.name || user?.email?.split('@')[0] || 'Usuario';
+              const userEmail = user?.email || '';
+              
+              if (eventType === 'RESERVAR MESA') {
+                console.log('📧 Enviando notificación de reserva de mesa...', {
+                  userName,
+                  userEmail,
+                  fecha,
+                  hora,
+                  comensales,
+                  observaciones
+                });
+                
+                const notificarReserva = httpsCallable(functions, 'notificarReservaMesa');
+                const result = await notificarReserva({
+                  userName,
+                  userEmail,
+                  fecha,
+                  hora,
+                  comensales,
+                  observaciones
+                });
+                
+                console.log('✅ Notificación de reserva enviada:', result.data);
+              } else {
+                // Para otros eventos (CUMPLEAÑOS MES, FIESTAS DE ESTELLA, eventos temporales, etc.)
+                console.log('📧 Enviando notificación de inscripción a evento...', {
+                  eventType,
+                  userName,
+                  userEmail
+                });
+                
+                const notificarInscripcion = httpsCallable(functions, 'notificarInscripcionEventoGeneral');
+                const result = await notificarInscripcion({
+                  eventType,
+                  userName,
+                  userEmail,
+                  adultos: adultos || 0,
+                  ninos: ninos || 0,
+                  decimos: decimos || 0,
+                  fecha: fecha || '',
+                  diaSemana: getDayOfWeek(fecha) || ''
+                });
+                
+                console.log('✅ Notificación de inscripción enviada:', result.data);
+              }
+            } else {
+              console.log('⚠️ Emails desactivados - no se envió notificación');
+            }
           } catch (emailError) {
-            console.error('❌ Error enviando notificación de reserva:', emailError);
+            console.error('❌ Error enviando notificación:', emailError);
             console.error('Detalles:', emailError.message, emailError.code);
           }
-        }
-        
-        alert('Inscripción registrada correctamente');
+        })();
       }
 
       // Limpiar formulario
@@ -245,9 +424,13 @@ export default function Eventos({ user, profile }) {
       setComensales(1);
       setDecimos(1);
       setTextoCena('');
+      setTipoComida('CENA');
       
-      // Recargar lista
+      // Recargar lista y configuración
       loadRegistrations();
+      if (eventType === 'CUMPLEAÑOS MES') {
+        loadFechaProximaCena();
+      }
     } catch (err) {
       console.error('Error guardando inscripción:', err);
       alert('Error al guardar la inscripción: ' + (err.message || err));
@@ -267,6 +450,7 @@ export default function Eventos({ user, profile }) {
     setComensales(reg.comensales || 1);
     setDecimos(reg.decimos || 1);
     setTextoCena(reg.textoCena || '');
+    setTipoComida(reg.tipoComida || 'CENA');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -294,6 +478,7 @@ export default function Eventos({ user, profile }) {
     setComensales(1);
     setDecimos(1);
     setTextoCena('');
+    setTipoComida('CENA');
   };
 
   if (!user) {
@@ -342,7 +527,7 @@ export default function Eventos({ user, profile }) {
               </label>
               <select
                 value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
+                onChange={(e) => handleEventTypeChange(e.target.value)}
                 required
                 style={selectStyle}
               >
@@ -350,6 +535,16 @@ export default function Eventos({ user, profile }) {
                 {EVENT_TYPES.map(type => (
                   <option key={type} value={type}>{type}</option>
                 ))}
+                <option value="" disabled style={{ borderTop: '2px solid #ccc', marginTop: '4px' }}>──────────────</option>
+                {temporaryEvents.map(event => (
+                  <option key={event.id} value={`TEMP_${event.id}`}>
+                    {event.titulo} - {formatearFecha(event.fecha)} ({event.tipoComida})
+                  </option>
+                ))}
+                <option value="" disabled style={{ borderTop: '2px solid #ccc', marginTop: '4px' }}>──────────────</option>
+                <option value="CREAR_EVENTO" style={{ fontWeight: 'bold', color: '#059669' }}>
+                  ➕ CREAR EVENTO
+                </option>
               </select>
             </div>
 
@@ -430,9 +625,17 @@ export default function Eventos({ user, profile }) {
                     fontSize: 14, 
                     fontWeight: 700, 
                     color: fechaProximaCena && !isFechaPassada(fechaProximaCena) ? '#1e40af' : '#991b1b', 
-                    marginBottom: 4 
+                    marginBottom: 8 
                   }}>
-                    📅 FECHA PRÓXIMA CENA:
+                    📅 PRÓXIMO EVENTO:
+                  </div>
+                  <div style={{ 
+                    fontSize: 15, 
+                    fontWeight: 700,
+                    color: tipoEventoConfig === 'COMIDA' ? '#d97706' : '#2563eb',
+                    marginBottom: 6
+                  }}>
+                    {tipoEventoConfig === 'COMIDA' ? '🌞 COMIDA' : '🌙 CENA'}
                   </div>
                   <div style={{ 
                     fontSize: 16, 
@@ -442,12 +645,12 @@ export default function Eventos({ user, profile }) {
                     {fechaProximaCena && !isFechaPassada(fechaProximaCena) 
                       ? formatearFecha(fechaProximaCena)
                       : (fechaProximaCena && isFechaPassada(fechaProximaCena) 
-                          ? 'SIGUIENTE CENA AUN SIN PLANIFICAR' 
+                          ? `SIGUIENTE EVENTO AUN SIN PLANIFICAR` 
                           : 'NO HAY FECHA ESTABLECIDA')}
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                       Adultos *
                     </label>
@@ -465,7 +668,7 @@ export default function Eventos({ user, profile }) {
                       style={inputStyle}
                     />
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                       Niños
                     </label>
@@ -524,7 +727,7 @@ export default function Eventos({ user, profile }) {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={{ display: 'flex', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                       Adultos
@@ -555,13 +758,63 @@ export default function Eventos({ user, profile }) {
                     />
                   </div>
                 </div>
+                {/* Selector de Comida/Cena */}
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, fontSize: 14 }}>
+                    Tipo de evento *
+                  </label>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => setTipoComida('COMIDA')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 20px',
+                        fontSize: 15,
+                        fontWeight: 700,
+                        background: tipoComida === 'COMIDA' 
+                          ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                          : '#e5e7eb',
+                        color: tipoComida === 'COMIDA' ? '#fff' : '#6b7280',
+                        border: tipoComida === 'COMIDA' ? '3px solid #b45309' : '2px solid #d1d5db',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: tipoComida === 'COMIDA' ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                      }}
+                    >
+                      🌞 COMIDA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTipoComida('CENA')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 20px',
+                        fontSize: 15,
+                        fontWeight: 700,
+                        background: tipoComida === 'CENA' 
+                          ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
+                          : '#e5e7eb',
+                        color: tipoComida === 'CENA' ? '#fff' : '#6b7280',
+                        border: tipoComida === 'CENA' ? '3px solid #1d4ed8' : '2px solid #d1d5db',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: tipoComida === 'CENA' ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+                      }}
+                    >
+                      🌙 CENA
+                    </button>
+                  </div>
+                </div>
               </>
             )}
 
             {/* FERIAS: Adultos y Niños */}
             {eventType === 'FERIAS' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                     Adultos
                   </label>
@@ -575,16 +828,10 @@ export default function Eventos({ user, profile }) {
                         setAdultos('');
                       }
                     }}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      fontSize: 15,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8
-                    }}
+                    style={inputStyle}
                   />
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                     Niños
                   </label>
@@ -628,7 +875,7 @@ export default function Eventos({ user, profile }) {
 
             {/* COTILLON DE REYES: Adultos y Niños */}
             {eventType === 'COTILLON DE REYES' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'flex', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
                     Adultos
@@ -664,6 +911,86 @@ export default function Eventos({ user, profile }) {
                   />
                 </div>
               </div>
+            )}
+
+            {/* EVENTOS TEMPORALES: Fecha, Adultos y Niños */}
+            {eventType.startsWith('TEMP_') && (
+              <>
+                {/* Mostrar tipo de evento (solo información, no editable) */}
+                <div style={{
+                  background: tipoComida === 'COMIDA' 
+                    ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' 
+                    : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                  padding: 16,
+                  borderRadius: 12,
+                  border: tipoComida === 'COMIDA' ? '2px solid #f59e0b' : '2px solid #3b82f6',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ 
+                    fontSize: 18, 
+                    fontWeight: 700, 
+                    color: tipoComida === 'COMIDA' ? '#92400e' : '#1e3a8a' 
+                  }}>
+                    {tipoComida === 'COMIDA' ? '🌞 COMIDA' : '🌙 CENA'}
+                  </div>
+                  <div style={{ 
+                    fontSize: 13, 
+                    color: tipoComida === 'COMIDA' ? '#78350f' : '#1e40af',
+                    marginTop: 4
+                  }}>
+                    Tipo de evento establecido
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                    Fecha *
+                  </label>
+                  <input
+                    type="date"
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                    required
+                    disabled
+                    style={{
+                      ...inputStyle,
+                      background: '#f3f4f6',
+                      cursor: 'not-allowed',
+                      color: '#6b7280'
+                    }}
+                  />
+                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                    La fecha está establecida por el evento
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                      Adultos *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={adultos}
+                      onChange={(e) => setAdultos(e.target.value)}
+                      required
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                      Niños
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={ninos}
+                      onChange={(e) => setNinos(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Botones - solo mostrar si hay evento seleccionado */}
@@ -771,7 +1098,7 @@ export default function Eventos({ user, profile }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ fontSize: 20 }}>{isExpanded ? '▼' : '▶'}</span>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 16 }}>{eventType}</div>
+                          <div style={{ fontWeight: 700, fontSize: 16 }}>{getEventDisplayName(eventType)}</div>
                           <div style={{ fontSize: 13, opacity: 0.9 }}>
                             {registrations.length} inscripción{registrations.length !== 1 ? 'es' : ''}
                           </div>
@@ -815,9 +1142,24 @@ export default function Eventos({ user, profile }) {
 
                               {/* CUMPLEAÑOS MES */}
                               {reg.eventType === 'CUMPLEAÑOS MES' && (
-                                <div style={{ fontSize: 14, color: '#6b7280' }}>
-                                  👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
-                                </div>
+                                <>
+                                  <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                    👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                  </div>
+                                  {reg.tipoComida && (
+                                    <div style={{ 
+                                      fontSize: 13, 
+                                      fontWeight: 700, 
+                                      color: reg.tipoComida === 'COMIDA' ? '#d97706' : '#2563eb',
+                                      marginTop: 6,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4
+                                    }}>
+                                      {reg.tipoComida === 'COMIDA' ? '🌞 COMIDA' : '🌙 CENA'}
+                                    </div>
+                                  )}
+                                </>
                               )}
 
                               {/* FIESTAS DE ESTELLA */}
@@ -829,6 +1171,19 @@ export default function Eventos({ user, profile }) {
                                   <div style={{ fontSize: 14, color: '#6b7280' }}>
                                     👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
                                   </div>
+                                  {reg.tipoComida && (
+                                    <div style={{ 
+                                      fontSize: 13, 
+                                      fontWeight: 700, 
+                                      color: reg.tipoComida === 'COMIDA' ? '#d97706' : '#2563eb',
+                                      marginTop: 6,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4
+                                    }}>
+                                      {reg.tipoComida === 'COMIDA' ? '🌞 COMIDA' : '🌙 CENA'}
+                                    </div>
+                                  )}
                                 </>
                               )}
 
@@ -851,6 +1206,31 @@ export default function Eventos({ user, profile }) {
                                 <div style={{ fontSize: 14, color: '#6b7280' }}>
                                   👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
                                 </div>
+                              )}
+
+                              {/* EVENTOS TEMPORALES */}
+                              {reg.eventType.startsWith('TEMP_') && (
+                                <>
+                                  <div style={{ fontSize: 14, color: '#374151', marginBottom: 4 }}>
+                                    📅 {reg.fecha}
+                                  </div>
+                                  <div style={{ fontSize: 14, color: '#6b7280' }}>
+                                    👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
+                                  </div>
+                                  {reg.tipoComida && (
+                                    <div style={{ 
+                                      fontSize: 13, 
+                                      fontWeight: 700, 
+                                      color: reg.tipoComida === 'COMIDA' ? '#d97706' : '#2563eb',
+                                      marginTop: 6,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4
+                                    }}>
+                                      {reg.tipoComida === 'COMIDA' ? '🌞 COMIDA' : '🌙 CENA'}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -896,6 +1276,155 @@ export default function Eventos({ user, profile }) {
           );
         })()}
       </div>
+
+      {/* Modal para crear evento temporal */}
+      {showCreateEventModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: 24,
+            maxWidth: 500,
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+          }}>
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: 20, 
+              fontSize: 20, 
+              fontWeight: 700,
+              color: '#059669'
+            }}>
+              ➕ Crear Nuevo Evento
+            </h3>
+            
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                Título del evento *
+              </label>
+              <input
+                type="text"
+                value={newEventTitulo}
+                onChange={(e) => setNewEventTitulo(e.target.value)}
+                placeholder="Ej: Cena de San Valentín"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+                Fecha *
+              </label>
+              <input
+                type="date"
+                value={newEventFecha}
+                onChange={(e) => setNewEventFecha(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, fontSize: 14 }}>
+                Tipo *
+              </label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setNewEventTipoComida('COMIDA')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 20px',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    background: newEventTipoComida === 'COMIDA' 
+                      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                      : '#e5e7eb',
+                    color: newEventTipoComida === 'COMIDA' ? '#fff' : '#6b7280',
+                    border: newEventTipoComida === 'COMIDA' ? '3px solid #b45309' : '2px solid #d1d5db',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: newEventTipoComida === 'COMIDA' ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                  }}
+                >
+                  🌞 COMIDA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewEventTipoComida('CENA')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 20px',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    background: newEventTipoComida === 'CENA' 
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
+                      : '#e5e7eb',
+                    color: newEventTipoComida === 'CENA' ? '#fff' : '#6b7280',
+                    border: newEventTipoComida === 'CENA' ? '3px solid #1d4ed8' : '2px solid #d1d5db',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: newEventTipoComida === 'CENA' ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+                  }}
+                >
+                  🌙 CENA
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowCreateEventModal(false);
+                  setNewEventTitulo('');
+                  setNewEventFecha('');
+                  setNewEventTipoComida('COMIDA');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateTemporaryEvent}
+                disabled={loading}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: loading ? '#9ca3af' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {loading ? 'Creando...' : 'Crear Evento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import ListadosEventos from "./pages/ListadosEventos";
 import ListadosTPV from "./pages/ListadosTPV";
 import Productos from "./pages/Productos";
 import Socios from "./pages/Socios";
+import Configuracion from "./pages/Configuracion";
 import Perfil from "./pages/Perfil";
 import Eventos from "./pages/Eventos";
 import { auth, fetchUserDoc, logout, uploadUserPhoto, functions } from "./firebase";
@@ -15,7 +16,7 @@ import { httpsCallable } from "firebase/functions";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.5.10";
+export const APP_VERSION = "2.7.0";
 
 // Detectar tipo de dispositivo
 const getDeviceType = () => {
@@ -99,6 +100,7 @@ export default function App() {
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [suggestionText, setSuggestionText] = useState('');
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
   const nav = useNavigate();
   const { isInstallable, isInstalled, installPWA } = usePWAInstall();
 
@@ -121,6 +123,25 @@ export default function App() {
           console.log("Profile loaded:", doc);
           console.log("PhotoURL:", doc?.photoURL);
           setProfile(doc);
+          
+          // Verificar si es el cumpleaños del usuario
+          if (doc?.dob) {
+            const today = new Date();
+            const birthday = new Date(doc.dob);
+            
+            // Comparar día y mes
+            if (today.getDate() === birthday.getDate() && 
+                today.getMonth() === birthday.getMonth()) {
+              // Verificar si ya se mostró hoy
+              const lastShown = sessionStorage.getItem('birthday-shown');
+              const todayStr = today.toDateString();
+              
+              if (lastShown !== todayStr) {
+                setShowBirthdayModal(true);
+                sessionStorage.setItem('birthday-shown', todayStr);
+              }
+            }
+          }
         } catch (err) {
           console.error("fetchUserDoc error:", err);
           setProfile(null);
@@ -893,6 +914,16 @@ export default function App() {
             } 
           />
 
+          {/* Página de configuración para admin */}
+          <Route 
+            path="/configuracion" 
+            element={
+              user && profile?.isAdmin ? (
+                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Configuracion user={user} profile={profile} />
+              ) : <Navigate to={user ? "/menu" : "/login"} replace />
+            } 
+          />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -927,6 +958,81 @@ export default function App() {
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
             }}
           />
+        </div>
+      )}
+
+      {/* Modal de cumpleaños */}
+      {showBirthdayModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 20
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 16,
+              padding: '40px 30px',
+              maxWidth: 400,
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              animation: 'bounceIn 0.6s ease-out'
+            }}
+          >
+            <div style={{ fontSize: 60, marginBottom: 20 }}>🎉🎂🎊</div>
+            <h2 style={{ 
+              color: '#1976d2', 
+              marginBottom: 15,
+              fontSize: 24,
+              fontWeight: 'bold'
+            }}>
+              ¡MUCHAS FELICIDADES!
+            </h2>
+            <p style={{ 
+              color: '#333', 
+              fontSize: 18,
+              marginBottom: 30,
+              fontWeight: '500'
+            }}>
+              ¡DISFRUTA DE TU DÍA!
+            </p>
+            <button
+              onClick={() => setShowBirthdayModal(false)}
+              style={{
+                backgroundColor: '#1976d2',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '12px 40px',
+                fontSize: 16,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#1565c0';
+                e.target.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#1976d2';
+                e.target.style.transform = 'scale(1)';
+              }}
+            >
+              OK
+            </button>
+          </div>
         </div>
       )}
     </div>

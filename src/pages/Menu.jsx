@@ -90,6 +90,7 @@ export default function Menu({ user, profile }) {
         {profile?.isAdmin && <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />}
         {profile?.isAdmin && <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />}
+        {profile?.isAdmin && <MenuItem to="/configuracion" icon="⚙️" label="Configuración" isAdmin />}
       </div>
       
       <div style={{

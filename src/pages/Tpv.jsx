@@ -8,8 +8,10 @@ import {
   deleteExpense,
   getUserFavorites,
   toggleFavoriteProduct,
-  getAllSocios
+  getAllSocios,
+  storage
 } from "../firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 // util: agrupar líneas por productId o label+price
@@ -60,9 +62,16 @@ export default function TPV({ user, profile }) {
   const [socios, setSocios] = useState([]);
   const [selectedSocios, setSelectedSocios] = useState({});
   const [attendeesCount, setAttendeesCount] = useState({});
+  const [childrenCount, setChildrenCount] = useState({});
+  const [precioNino, setPrecioNino] = useState('');
   const [expandedTickets, setExpandedTickets] = useState({});
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [showSociosSection, setShowSociosSection] = useState(false);
+  const [detalle, setDetalle] = useState("");
+  const [fotoTicket, setFotoTicket] = useState(null);
+  const [fotoTicketURL, setFotoTicketURL] = useState("");
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [viewMode, setViewMode] = useState('categories'); // 'categories' o 'products'
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -188,7 +197,41 @@ export default function TPV({ user, profile }) {
   if (!user) return <div>No autenticado</div>;
   if (profile?.isAdmin) return <div>Los administradores no pueden usar TPV. Usa "Listados" o "Productos".</div>;
 
-  const addToCart = (p) => setCart(prev => [...prev, { productId: p.id, label: p.label, price: Number(p.price) || 0, qty: 1 }]);
+  const addToCart = (p) => {
+    // Si es el producto "A DEVOLVER", añadirlo como negativo con qty=1
+    const isDevolver = (p.label || "").toUpperCase().includes("A DEVOLVER");
+    if (isDevolver) {
+      // Para "A DEVOLVER", siempre crear nueva línea (cada devolución puede tener detalle diferente)
+      setCart(prev => [...prev, { 
+        productId: p.id, 
+        label: p.label, 
+        price: -Math.abs(Number(p.price) || 0), // Precio negativo
+        qty: 1 // Cantidad normal
+      }]);
+    } else {
+      // Para productos normales, incrementar cantidad si ya existe
+      setCart(prev => {
+        const existingIndex = prev.findIndex(item => item.productId === p.id);
+        if (existingIndex >= 0) {
+          // Ya existe, incrementar cantidad
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            qty: updated[existingIndex].qty + 1
+          };
+          return updated;
+        } else {
+          // No existe, añadir nuevo
+          return [...prev, { 
+            productId: p.id, 
+            label: p.label, 
+            price: Number(p.price) || 0, 
+            qty: 1 
+          }];
+        }
+      });
+    }
+  };
   const removeFromCart = (index) => setCart(prev => prev.filter((_, i) => i !== index));
   const updateCartLine = (index, values) => setCart(prev => prev.map((l, i) => i === index ? { ...l, ...values } : l));
 
@@ -207,6 +250,32 @@ export default function TPV({ user, profile }) {
 
   const groupedCart = groupProductLines(cart);
   const total = groupedCart.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 1)), 0);
+
+  // Función para subir la foto del ticket
+  const handleFotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploadingFoto(true);
+    try {
+      const timestamp = Date.now();
+      const fileName = `tickets/${user.uid}/${timestamp}_${file.name}`;
+      const storageReference = storageRef(storage, fileName);
+      
+      await uploadBytes(storageReference, file);
+      const url = await getDownloadURL(storageReference);
+      
+      setFotoTicketURL(url);
+      setFotoTicket(file);
+      alert("✅ Foto subida correctamente");
+    } catch (err) {
+      console.error("Error subiendo foto:", err);
+      alert("Error al subir la foto: " + err.message);
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
 
   // Obtener categorías únicas
   const categories = [...new Set(products.map(p => p.category || "Sin categoría"))].sort();
@@ -228,15 +297,18 @@ export default function TPV({ user, profile }) {
     if (!groupedCart.length) { alert("Carrito vacío"); return; }
     if (!user || !user.uid) { alert("No autenticado"); return; }
     
+    // Validar que si hay producto "A DEVOLVER", el detalle es obligatorio
+    const tieneDevolver = cart.some(item => (item.label || '').toUpperCase().includes('A DEVOLVER'));
+    if (tieneDevolver && !detalle.trim()) {
+      alert("❌ Debes explicar el motivo de la devolución en el campo de detalle");
+      return;
+    }
+    
     // Calcular el total antes de las validaciones
     const groupedLines = groupedCart;
     const computedTotal = groupedLines.reduce((s, l) => s + (l.price * l.qty), 0);
     
-    // Validar que el total es mayor que 0
-    if (computedTotal <= 0) {
-      alert("No se puede guardar un ticket sin productos");
-      return;
-    }
+    // Ya no validamos que el total sea mayor que 0, porque puede ser negativo (devolución)
     
     // Si es para la sociedad, validar que al menos un socio esté seleccionado
     if (isForSociedad) {
@@ -244,6 +316,23 @@ export default function TPV({ user, profile }) {
       if (selectedCount === 0) {
         alert("Debes seleccionar al menos 1 socio");
         return;
+      }
+      
+      // Validar que si hay precio de niño, al menos haya algún niño apuntado
+      const precioNinoNum = Number(precioNino) || 0;
+      if (precioNinoNum > 0) {
+        const selectedSociosList = Object.entries(selectedSocios)
+          .filter(([_, isSelected]) => isSelected)
+          .map(([socioId, _]) => socioId);
+        
+        const totalChildren = selectedSociosList.reduce((sum, socioId) => {
+          return sum + Number(childrenCount[socioId] || 0);
+        }, 0);
+        
+        if (totalChildren === 0) {
+          alert("⚠️ Has establecido un precio de niño pero no has apuntado ningún niño.\n\nO añade niños o deja el precio de niño en blanco.");
+          return;
+        }
       }
     }
     
@@ -256,37 +345,55 @@ export default function TPV({ user, profile }) {
           .filter(([_, isSelected]) => isSelected)
           .map(([socioId, _]) => socioId);
         
-        // Calcular total de asistentes
+        // Calcular total de asistentes adultos
         const totalAttendees = selectedSociosList.reduce((sum, socioId) => {
           return sum + Number(attendeesCount[socioId] || 1);
         }, 0);
         
+        // Calcular total de niños
+        const totalChildren = selectedSociosList.reduce((sum, socioId) => {
+          return sum + Number(childrenCount[socioId] || 0);
+        }, 0);
+        
+        // Calcular el monto de los niños
+        const precioNinoNum = Number(precioNino) || 0;
+        const totalNinos = totalChildren * precioNinoNum;
+        
+        // Calcular el monto a repartir entre adultos
+        const totalParaAdultos = computedTotal - totalNinos;
+        
         console.log('🎯 CREANDO GASTO DE SOCIEDAD:');
         console.log('   Total del gasto:', computedTotal);
+        console.log('   Precio niño:', precioNinoNum);
+        console.log('   Total niños:', totalChildren, '×', precioNinoNum, '=', totalNinos);
+        console.log('   Total para adultos:', totalParaAdultos);
         console.log('   Socios seleccionados:', selectedSociosList.length);
-        console.log('   Total de asistentes:', totalAttendees);
+        console.log('   Total de asistentes adultos:', totalAttendees);
         
-        const amountPerAttendee = computedTotal / totalAttendees;
-        console.log('   Precio por asistente:', amountPerAttendee.toFixed(2));
+        const amountPerAttendee = totalAttendees > 0 ? totalParaAdultos / totalAttendees : 0;
+        console.log('   Precio por adulto:', amountPerAttendee.toFixed(2));
         
         // Construir array de participantes
         const participantes = selectedSociosList.map(socioId => {
           const socio = socios.find(s => s.id === socioId);
           const attendees = Number(attendeesCount[socioId] || 1);
-          const socioAmount = amountPerAttendee * attendees;
-          console.log(`   → ${socio?.email}: ${attendees} asist. = ${socioAmount.toFixed(2)}€`);
+          const children = Number(childrenCount[socioId] || 0);
+          const socioAmount = (amountPerAttendee * attendees) + (precioNinoNum * children);
+          console.log(`   → ${socio?.email}: ${attendees} adult. + ${children} niños = ${socioAmount.toFixed(2)}€`);
           return {
             uid: socioId,
             email: socio?.email || '',
             nombre: socio?.nombre || socio?.email?.split('@')[0] || 'Socio',
             attendees: attendees,
+            children: children,
             amount: socioAmount
           };
         });
         
+        const totalAssistentes = totalAttendees + totalChildren;
         const itemDescription = eventoTexto.trim() 
-          ? `[SOCIEDAD - ${eventoTexto.trim()}] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} asistente${totalAttendees > 1 ? 's' : ''})`
-          : `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} asistente${totalAttendees > 1 ? 's' : ''})`;
+          ? `[SOCIEDAD - ${eventoTexto.trim()}] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} adulto${totalAttendees !== 1 ? 's' : ''}${totalChildren > 0 ? ` + ${totalChildren} niño${totalChildren !== 1 ? 's' : ''}` : ''})`
+          : `[SOCIEDAD] ${groupedLines.map(l => `${l.qty}x ${l.label}`).join(", ")} (${totalAttendees} adulto${totalAttendees !== 1 ? 's' : ''}${totalChildren > 0 ? ` + ${totalChildren} niño${totalChildren !== 1 ? 's' : ''}` : ''})`;
         
         // Crear UN solo ticket con todos los participantes
         await addSale({
@@ -301,11 +408,26 @@ export default function TPV({ user, profile }) {
           totalGeneral: computedTotal,
           amountPerAttendee: amountPerAttendee,
           totalAttendees: totalAttendees,
+          totalChildren: totalChildren,
+          precioNino: precioNinoNum,
+          totalNinos: totalNinos,
+          totalParaAdultos: totalParaAdultos,
+          detalle: detalle.trim() || null,
+          fotoTicketURL: fotoTicketURL || null,
           isForSociedad: true
         });
         
         console.log('✅ Ticket único creado con', participantes.length, 'participantes');
-        alert(`Gasto repartido entre ${selectedSociosList.length} socios (${totalAttendees} asistentes)\nTotal: ${computedTotal.toFixed(2)} €\nPor asistente: ${amountPerAttendee.toFixed(2)} €`);
+        
+        let alertMessage = `Gasto repartido entre ${selectedSociosList.length} socios\n`;
+        alertMessage += `Total: ${computedTotal.toFixed(2)} €\n`;
+        if (totalChildren > 0) {
+          alertMessage += `Niños: ${totalChildren} × ${precioNinoNum.toFixed(2)}€ = ${totalNinos.toFixed(2)}€\n`;
+          alertMessage += `Adultos: ${totalAttendees} × ${amountPerAttendee.toFixed(2)}€ = ${totalParaAdultos.toFixed(2)}€`;
+        } else {
+          alertMessage += `Adultos: ${totalAttendees}\nPor adulto: ${amountPerAttendee.toFixed(2)} €`;
+        }
+        alert(alertMessage);
         
       } else {
         // Modo normal: guardar para el usuario actual
@@ -325,6 +447,8 @@ export default function TPV({ user, profile }) {
           category: salePayload.category,
           amount: salePayload.amount,
           productLines: salePayload.productLines,
+          detalle: detalle.trim() || null,
+          fotoTicketURL: fotoTicketURL || null,
           isForSociedad: false
         });
         
@@ -337,6 +461,11 @@ export default function TPV({ user, profile }) {
       setEventoTexto("");
       setSelectedSocios({});
       setAttendeesCount({});
+      setChildrenCount({});
+      setPrecioNino('');
+      setDetalle("");
+      setFotoTicket(null);
+      setFotoTicketURL("");
       
       // Recargar historial
       const docs = await queryExpenses({ uid: user?.uid, isAdmin: false });
@@ -381,6 +510,7 @@ export default function TPV({ user, profile }) {
       dateInput: ticket.dateInput || toInputDateTime(ticket.createdAt),
       category: ticket.category || 'venta',
       eventoTexto: ticket.eventoTexto || '',
+      detalle: ticket.detalle || '',
       selectedSocios: selectedSociosMap,
       attendeesCount: attendeesMap
     });
@@ -439,7 +569,8 @@ export default function TPV({ user, profile }) {
           eventoTexto: eventoTexto,
           totalGeneral: computedTotal,
           amountPerAttendee: amountPerAttendee,
-          totalAttendees: totalAttendees
+          totalAttendees: totalAttendees,
+          detalle: editingData.detalle?.trim() || null
         };
         
         await updateExpense(editingTicketId, payload);
@@ -455,7 +586,8 @@ export default function TPV({ user, profile }) {
           eventoTexto: null,
           totalGeneral: null,
           amountPerAttendee: null,
-          totalAttendees: null
+          totalAttendees: null,
+          detalle: editingData.detalle?.trim() || null
         };
         
         await updateExpense(editingTicketId, payload);
@@ -583,6 +715,10 @@ export default function TPV({ user, profile }) {
                 >
                   {showProducts ? '▼ Ocultar Productos' : '▶ Mostrar Productos'}
                 </button>
+                
+                {/* Controles solo en vista de productos */}
+                {viewMode === 'products' && (
+                <>
                 {/* Selector de categoría */}
                 <select
                   value={selectedCategory}
@@ -598,7 +734,7 @@ export default function TPV({ user, profile }) {
                     fontWeight: 500
                   }}
                 >
-                  <option value="all">📋 Todas las categorías</option>
+                  <option value="all">📋 Todos los productos</option>
                   {categories.map(cat => (
                     <option key={cat} value={cat}>
                       {cat}
@@ -664,6 +800,8 @@ export default function TPV({ user, profile }) {
                   <span style={{fontSize:16}}>{showFavoritesOnly ? "⭐" : "📋"}</span>
                   <span>{showFavoritesOnly ? "Favoritos" : "FAV"}</span>
                 </button>
+                </>
+                )}
               </div>
             </div>
             
@@ -672,6 +810,94 @@ export default function TPV({ user, profile }) {
             <>
             {showProducts && (
             <>
+            
+            {/* Vista de categorías */}
+            {viewMode === 'categories' ? (
+              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:16, padding:8}}>
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setViewMode('products');
+                    }}
+                    className="card"
+                    style={{
+                      padding: '24px 16px',
+                      borderRadius: '16px',
+                      background: 'linear-gradient(135deg, #fff 0%, #f8f9fa 100%)',
+                      border: '2px solid #e5e7eb',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 8,
+                      textAlign: 'center'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.15)';
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                    }}
+                  >
+                    <div style={{fontSize:36, marginBottom:4}}>
+                      {cat === 'REFRESCOS' ? '🥤' : 
+                       cat === 'BEBIDA' ? '🍺' :
+                       cat === 'COMBINADO' ? '🍹' :
+                       cat === 'COMIDA' ? '🍔' :
+                       cat === 'COMPRAS VARIAS' ? '🛒' :
+                       '📦'}
+                    </div>
+                    <div style={{fontSize:16, fontWeight:700, color:'#1e293b'}}>
+                      {cat}
+                    </div>
+                    <div style={{fontSize:12, color:'#64748b'}}>
+                      {products.filter(p => (p.category || "Sin categoría") === cat).length} productos
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              /* Vista de productos */
+              <>
+                <div style={{marginBottom:12}}>
+                  <button
+                    onClick={() => {
+                      setViewMode('categories');
+                      setSelectedCategory('all');
+                    }}
+                    style={{
+                      fontSize:14,
+                      fontWeight:600,
+                      padding:'8px 16px',
+                      borderRadius:8,
+                      background:'#f3f4f6',
+                      border:'1px solid #d1d5db',
+                      cursor:'pointer',
+                      display:'flex',
+                      alignItems:'center',
+                      gap:6,
+                      transition:'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#e5e7eb';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#f3f4f6';
+                    }}
+                  >
+                    <span>←</span>
+                    <span>Volver a categorías</span>
+                  </button>
+                </div>
+                
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:12}}>
               {displayedProducts.map(p => {
                 const isFavorite = favorites.includes(p.id);
@@ -785,6 +1011,8 @@ export default function TPV({ user, profile }) {
             )}
             </>
             )}
+            </>
+            )}
             {/* Fin de productos - se ocultan cuando isForSociedad=true */}
             </>
             )}
@@ -806,26 +1034,60 @@ export default function TPV({ user, profile }) {
                       </div>
                     </div>
                     <div style={{display:'flex', alignItems:'center', gap:6}}>
-                      <input 
-                        className="small-input" 
-                        type="number" 
-                        min="1" 
-                        value={c.qty} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          // Permitir vacío temporalmente mientras el usuario escribe
-                          updateCartLine(i, { qty: val === '' ? '' : Number(val) });
-                        }}
-                        onBlur={(e) => {
-                          // Al perder el foco, asegurar que sea al menos 1
-                          const val = Number(e.target.value);
-                          if (!val || val < 1) {
-                            updateCartLine(i, { qty: 1 });
-                          }
-                        }}
-                        style={{width:60, padding:4, fontSize:14}}
-                      />
-                      <span style={{fontSize:12, color:'#666'}}>uds.</span>
+                      {(c.label || '').toUpperCase().includes('A DEVOLVER') ? (
+                        // Para "A DEVOLVER", permitir editar el precio (mostrado como positivo)
+                        <>
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input 
+                              className="small-input" 
+                              type="number" 
+                              step="0.01"
+                              min="0"
+                              value={c.price === 0 ? '' : Math.abs(c.price)} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  updateCartLine(i, { price: 0 });
+                                } else {
+                                  const numVal = Number(val);
+                                  updateCartLine(i, { price: -Math.abs(numVal) });
+                                }
+                              }}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || Number(e.target.value) === 0) {
+                                  updateCartLine(i, { price: 0 });
+                                }
+                              }}
+                              placeholder="0.00"
+                              style={{width:80, padding:4, paddingRight:20, fontSize:14}}
+                            />
+                            <span style={{ position: 'absolute', right: 6, fontSize: 12, color: '#6b7280' }}>€</span>
+                          </div>
+                          <span style={{fontSize:12, color:'#dc2626', fontWeight:600}}>a devolver</span>
+                        </>
+                      ) : (
+                        // Para otros productos, permitir editar cantidad
+                        <>
+                          <input 
+                            className="small-input" 
+                            type="number" 
+                            min="1" 
+                            value={c.qty} 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateCartLine(i, { qty: val === '' ? '' : Number(val) });
+                            }}
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              if (!val || val < 1) {
+                                updateCartLine(i, { qty: 1 });
+                              }
+                            }}
+                            style={{width:60, padding:4, fontSize:14}}
+                          />
+                          <span style={{fontSize:12, color:'#666'}}>uds.</span>
+                        </>
+                      )}
                       <button 
                         className="btn-ghost" 
                         onClick={() => removeFromCart(i)}
@@ -858,25 +1120,51 @@ export default function TPV({ user, profile }) {
                 
                 {/* Campo de texto para el evento */}
                 {isForSociedad && (
-                  <div style={{marginTop:10}}>
-                    <input 
-                      type="text" 
-                      value={eventoTexto}
-                      onChange={(e) => setEventoTexto(e.target.value)}
-                      placeholder="Describe el evento (ej: Cena de Navidad, Comida de hermandad...)"
-                      style={{
-                        width:'100%', 
-                        padding:'8px 12px', 
-                        fontSize:13,
-                        border:'2px solid #fbbf24',
-                        borderRadius:6,
-                        background:'#fef9e7',
-                        color:'#92400e',
-                        fontWeight:500,
-                        boxSizing:'border-box'
-                      }}
-                    />
-                  </div>
+                  <>
+                    <div style={{marginTop:10}}>
+                      <input 
+                        type="text" 
+                        value={eventoTexto}
+                        onChange={(e) => setEventoTexto(e.target.value)}
+                        placeholder="Describe el evento (ej: Cena de Navidad, Comida de hermandad...)"
+                        style={{
+                          width:'100%', 
+                          padding:'8px 12px', 
+                          fontSize:13,
+                          border:'2px solid #fbbf24',
+                          borderRadius:6,
+                          background:'#fef9e7',
+                          color:'#92400e',
+                          fontWeight:500,
+                          boxSizing:'border-box'
+                        }}
+                      />
+                    </div>
+                    <div style={{marginTop:10}}>
+                      <label style={{display:'block', marginBottom:4, fontWeight:600, color:'#92400e', fontSize:12}}>
+                        💶 Precio Niño (€):
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        value={precioNino}
+                        onChange={(e) => setPrecioNino(e.target.value)}
+                        placeholder="Ej: 8.50"
+                        style={{
+                          width:'100%', 
+                          padding:'8px 12px', 
+                          fontSize:13,
+                          border:'2px solid #fbbf24',
+                          borderRadius:6,
+                          background:'#fef9e7',
+                          color:'#92400e',
+                          fontWeight:500,
+                          boxSizing:'border-box'
+                        }}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
               
@@ -946,6 +1234,114 @@ export default function TPV({ user, profile }) {
                                 onClick={(e) => e.stopPropagation()}
                                 style={{width: deviceConfig.checkboxSize, height: deviceConfig.checkboxSize, cursor:'pointer'}}
                               />
+                              {selectedSocios[socio.id] && (
+                                <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5}}>
+                                  {/* Controles para niños */}
+                                  <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3}}>
+                                    <div style={{fontSize: 9, color: '#92400e', fontWeight: 600}}>
+                                      Niños
+                                    </div>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: 2, width: '100%'}}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChildrenCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: Math.max(0, (prev[socio.id] || 0) - 1)
+                                          }));
+                                        }}
+                                        style={{
+                                          width: deviceConfig.buttonSize,
+                                          height: deviceConfig.buttonSize,
+                                          padding: 0,
+                                          fontSize: 18,
+                                          fontWeight: 700,
+                                          background: '#fff',
+                                          border: '2px solid #f59e0b',
+                                          borderRadius: 4,
+                                          color: '#92400e',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          lineHeight: 1,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        −
+                                      </button>
+                                      <input 
+                                        type="number" 
+                                        min="0" 
+                                        value={childrenCount[socio.id] || 0}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setChildrenCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: val === '' ? 0 : Number(val)
+                                          }));
+                                        }}
+                                        onBlur={(e) => {
+                                          const val = Number(e.target.value);
+                                          if (!val || val < 0) {
+                                            setChildrenCount(prev => ({ ...prev, [socio.id]: 0 }));
+                                          }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onFocus={(e) => e.target.select()}
+                                        style={{
+                                          flex: 1,
+                                          padding:'0', 
+                                          margin: 0,
+                                          fontSize: deviceConfig.inputFontSize, 
+                                          textAlign:'center',
+                                          border:'2px solid #f59e0b',
+                                          borderRadius:4,
+                                          fontWeight:700,
+                                          color:'#92400e',
+                                          background: '#fff',
+                                          minWidth: 0,
+                                          width: '100%',
+                                          boxSizing: 'border-box',
+                                          lineHeight: `${deviceConfig.buttonSize - 4}px`,
+                                          height: deviceConfig.buttonSize,
+                                          WebkitAppearance: 'none',
+                                          MozAppearance: 'textfield',
+                                          appearance: 'none'
+                                        }}
+                                      />
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChildrenCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: (prev[socio.id] || 0) + 1
+                                          }));
+                                        }}
+                                        style={{
+                                          width: deviceConfig.buttonSize,
+                                          height: deviceConfig.buttonSize,
+                                          padding: 0,
+                                          fontSize: 18,
+                                          fontWeight: 700,
+                                          background: '#fff',
+                                          border: '2px solid #f59e0b',
+                                          borderRadius: 4,
+                                          color: '#92400e',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          lineHeight: 1,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               <div style={{
                                 fontWeight:700, 
                                 fontSize: deviceConfig.fontSize,
@@ -958,107 +1354,110 @@ export default function TPV({ user, profile }) {
                                 {displayName}
                               </div>
                               {selectedSocios[socio.id] && (
-                                <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3}}>
-                                  <div style={{fontSize: 9, color: '#92400e', fontWeight: 600}}>
-                                    Asist.
-                                  </div>
-                                  <div style={{display: 'flex', alignItems: 'center', gap: 2, width: '100%'}}>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAttendeesCount(prev => ({
-                                          ...prev,
-                                          [socio.id]: Math.max(1, (prev[socio.id] || 1) - 1)
-                                        }));
-                                      }}
-                                      style={{
-                                        width: deviceConfig.buttonSize,
-                                        height: deviceConfig.buttonSize,
-                                        padding: 0,
-                                        fontSize: 18,
-                                        fontWeight: 700,
-                                        background: '#fff',
-                                        border: '2px solid #f59e0b',
-                                        borderRadius: 4,
-                                        color: '#92400e',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        lineHeight: 1,
-                                        flexShrink: 0
-                                      }}
-                                    >
-                                      −
-                                    </button>
-                                    <input 
-                                      type="number" 
-                                      min="1" 
-                                      value={attendeesCount[socio.id] || 1}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setAttendeesCount(prev => ({
-                                          ...prev,
-                                          [socio.id]: val === '' ? '' : Number(val)
-                                        }));
-                                      }}
-                                      onBlur={(e) => {
-                                        const val = Number(e.target.value);
-                                        if (!val || val < 1) {
-                                          setAttendeesCount(prev => ({ ...prev, [socio.id]: 1 }));
-                                        }
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onFocus={(e) => e.target.select()}
-                                      style={{
-                                        flex: 1,
-                                        padding:'0', 
-                                        margin: 0,
-                                        fontSize: deviceConfig.inputFontSize, 
-                                        textAlign:'center',
-                                        border:'2px solid #f59e0b',
-                                        borderRadius:4,
-                                        fontWeight:700,
-                                        color:'#92400e',
-                                        background: '#fff',
-                                        minWidth: 0,
-                                        width: '100%',
-                                        boxSizing: 'border-box',
-                                        lineHeight: `${deviceConfig.buttonSize - 4}px`,
-                                        height: deviceConfig.buttonSize,
-                                        WebkitAppearance: 'none',
-                                        MozAppearance: 'textfield',
-                                        appearance: 'none'
-                                      }}
-                                    />
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAttendeesCount(prev => ({
-                                          ...prev,
-                                          [socio.id]: (prev[socio.id] || 1) + 1
-                                        }));
-                                      }}
-                                      style={{
-                                        width: deviceConfig.buttonSize,
-                                        height: deviceConfig.buttonSize,
-                                        padding: 0,
-                                        fontSize: 18,
-                                        fontWeight: 700,
-                                        background: '#fff',
-                                        border: '2px solid #f59e0b',
-                                        borderRadius: 4,
-                                        color: '#92400e',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        lineHeight: 1,
-                                        flexShrink: 0
-                                      }}
-                                    >
-                                      +
-                                    </button>
+                                <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5}}>
+                                  {/* Controles para adultos */}
+                                  <div style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3}}>
+                                    <div style={{fontSize: 9, color: '#92400e', fontWeight: 600}}>
+                                      Adultos
+                                    </div>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: 2, width: '100%'}}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setAttendeesCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: Math.max(1, (prev[socio.id] || 1) - 1)
+                                          }));
+                                        }}
+                                        style={{
+                                          width: deviceConfig.buttonSize,
+                                          height: deviceConfig.buttonSize,
+                                          padding: 0,
+                                          fontSize: 18,
+                                          fontWeight: 700,
+                                          background: '#fff',
+                                          border: '2px solid #f59e0b',
+                                          borderRadius: 4,
+                                          color: '#92400e',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          lineHeight: 1,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        −
+                                      </button>
+                                      <input 
+                                        type="number" 
+                                        min="1" 
+                                        value={attendeesCount[socio.id] || 1}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setAttendeesCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: val === '' ? '' : Number(val)
+                                          }));
+                                        }}
+                                        onBlur={(e) => {
+                                          const val = Number(e.target.value);
+                                          if (!val || val < 1) {
+                                            setAttendeesCount(prev => ({ ...prev, [socio.id]: 1 }));
+                                          }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onFocus={(e) => e.target.select()}
+                                        style={{
+                                          flex: 1,
+                                          padding:'0', 
+                                          margin: 0,
+                                          fontSize: deviceConfig.inputFontSize, 
+                                          textAlign:'center',
+                                          border:'2px solid #f59e0b',
+                                          borderRadius:4,
+                                          fontWeight:700,
+                                          color:'#92400e',
+                                          background: '#fff',
+                                          minWidth: 0,
+                                          width: '100%',
+                                          boxSizing: 'border-box',
+                                          lineHeight: `${deviceConfig.buttonSize - 4}px`,
+                                          height: deviceConfig.buttonSize,
+                                          WebkitAppearance: 'none',
+                                          MozAppearance: 'textfield',
+                                          appearance: 'none'
+                                        }}
+                                      />
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setAttendeesCount(prev => ({
+                                            ...prev,
+                                            [socio.id]: (prev[socio.id] || 1) + 1
+                                          }));
+                                        }}
+                                        style={{
+                                          width: deviceConfig.buttonSize,
+                                          height: deviceConfig.buttonSize,
+                                          padding: 0,
+                                          fontSize: 18,
+                                          fontWeight: 700,
+                                          background: '#fff',
+                                          border: '2px solid #f59e0b',
+                                          borderRadius: 4,
+                                          color: '#92400e',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          lineHeight: 1,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               )}
@@ -1069,12 +1468,80 @@ export default function TPV({ user, profile }) {
                       <div style={{marginTop:8, fontSize:12, color:'#92400e', fontWeight:600}}>
                         ✓ Socios seleccionados: {Object.values(selectedSocios).filter(Boolean).length} de {socios.length}
                         {' • '}
-                        Total asistentes: {Object.entries(selectedSocios)
+                        Adultos: {Object.entries(selectedSocios)
                           .filter(([_, selected]) => selected)
                           .reduce((sum, [socioId, _]) => sum + Number(attendeesCount[socioId] || 1), 0)}
+                        {' • '}
+                        Niños: {Object.entries(selectedSocios)
+                          .filter(([_, selected]) => selected)
+                          .reduce((sum, [socioId, _]) => sum + Number(childrenCount[socioId] || 0), 0)}
                       </div>
                     </>
                   )}
+                </div>
+              )}
+              
+              {/* Campo de detalle solo cuando hay producto "A DEVOLVER" */}
+              {cart.some(item => (item.label || '').toUpperCase().includes('A DEVOLVER')) && (
+                <div style={{marginTop:12, padding:12, background:'#fff3cd', borderRadius:8, border:'2px solid #ffc107'}}>
+                  <label style={{display:'block', marginBottom:6, fontWeight:700, color:'#856404', fontSize:14}}>
+                    📝 Detalle del reembolso (obligatorio):
+                  </label>
+                  <textarea 
+                    value={detalle}
+                    onChange={(e) => setDetalle(e.target.value)}
+                    placeholder="Explica el motivo de la devolución (ej: Reembolso por cena cancelada, Devolución por pago duplicado, etc.)"
+                    style={{
+                      width:'100%', 
+                      padding:'8px 12px', 
+                      fontSize:13,
+                      border:'2px solid #fbbf24',
+                      borderRadius:6,
+                      background:'#fef9e7',
+                      color:'#92400e',
+                      fontFamily:'inherit',
+                      resize:'vertical',
+                      minHeight:60,
+                      boxSizing:'border-box'
+                    }}
+                  />
+                  
+                  {/* Botón para subir foto del ticket */}
+                  <div style={{marginTop:10}}>
+                    <label style={{display:'block', marginBottom:6, fontWeight:600, color:'#856404', fontSize:13}}>
+                      📷 Foto del ticket (opcional):
+                    </label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleFotoChange}
+                      disabled={uploadingFoto}
+                      style={{
+                        width:'100%',
+                        padding:'8px',
+                        fontSize:13,
+                        border:'2px solid #fbbf24',
+                        borderRadius:6,
+                        background:'#fef9e7',
+                        cursor:'pointer'
+                      }}
+                    />
+                    {uploadingFoto && (
+                      <p style={{marginTop:6, fontSize:12, color:'#856404', fontStyle:'italic'}}>
+                        ⏳ Subiendo foto...
+                      </p>
+                    )}
+                    {fotoTicketURL && !uploadingFoto && (
+                      <div style={{marginTop:8}}>
+                        <p style={{fontSize:12, color:'#15803d', marginBottom:4}}>✅ Foto subida correctamente</p>
+                        <img 
+                          src={fotoTicketURL} 
+                          alt="Ticket" 
+                          style={{maxWidth:'100%', maxHeight:200, borderRadius:6, border:'1px solid #fbbf24'}}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               
@@ -1108,11 +1575,17 @@ export default function TPV({ user, profile }) {
                     <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
                       Productos
                     </th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                      Detalle
+                    </th>
                     <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                       Tipo
                     </th>
                     <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                       Total
+                    </th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                      A Devolver
                     </th>
                     <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                       Tu Gasto
@@ -1146,6 +1619,21 @@ export default function TPV({ user, profile }) {
                               </div>
                             ))}
                           </div>
+                        </td>
+
+                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#6b7280', maxWidth: 200 }}>
+                          {h.detalle ? (
+                            <div style={{ 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'normal',
+                              lineHeight: 1.4
+                            }}>
+                              {h.detalle}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#d1d5db', fontSize: 12 }}>—</span>
+                          )}
                         </td>
 
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -1184,6 +1672,13 @@ export default function TPV({ user, profile }) {
                           {Number(h.amount || 0).toFixed(2)}€
                         </td>
 
+                        <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 700, color: '#dc2626', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            const devolver = (h.productLines || []).filter(pl => (pl.label || '').toUpperCase().includes('A DEVOLVER')).reduce((sum, pl) => sum + (Number(pl.price || 0) * Number(pl.qty || 1)), 0);
+                            return devolver < 0 ? `${devolver.toFixed(2)}€` : '—';
+                          })()}
+                        </td>
+
                         <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {gastoInfo ? (
                             <div>
@@ -1210,7 +1705,7 @@ export default function TPV({ user, profile }) {
                       {/* Fila de edición expandida */}
                       {editingTicketId === h.id && (
                         <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
-                          <td colSpan={5} style={{ padding: '20px 16px' }}>
+                          <td colSpan={7} style={{ padding: '20px 16px' }}>
                             <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, border: '2px solid #3b82f6' }}>
                               <h4 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600, color: '#111827' }}>
                                 ✏️ Editando ticket
@@ -1613,6 +2108,31 @@ export default function TPV({ user, profile }) {
                                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '2px solid #e5e7eb', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
                                   Total: {(editingData.productLines || []).reduce((s, l) => s + (Number(l.price || 0) * Number(l.qty || 1)), 0).toFixed(2)}€
                                 </div>
+                              </div>
+
+                              {/* Campo de detalle */}
+                              <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                                  📝 Detalle / Notas (opcional)
+                                </label>
+                                <textarea 
+                                  value={editingData.detalle || ''}
+                                  onChange={(e) => setEditingData(d => ({ ...d, detalle: e.target.value }))}
+                                  placeholder="Añade información adicional sobre esta compra..."
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    fontSize: 13,
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 6,
+                                    background: '#f9fafb',
+                                    color: '#374151',
+                                    fontFamily: 'inherit',
+                                    resize: 'vertical',
+                                    minHeight: 60,
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
                               </div>
 
                               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>

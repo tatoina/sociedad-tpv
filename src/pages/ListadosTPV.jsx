@@ -180,6 +180,7 @@ export default function ListadosTPV({ user, profile }) {
       category: ticket.category || 'venta',
       attendees: totalAttendees,
       eventoTexto: ticket.eventoTexto || '',
+      detalle: ticket.detalle || '',
       selectedSocios: selectedSociosMap,
       attendeesCount: attendeesMap,
       originalUid: ticket.uid
@@ -259,7 +260,8 @@ export default function ListadosTPV({ user, profile }) {
           eventoTexto: eventoTexto,
           totalGeneral: computedTotal,
           amountPerAttendee: amountPerAttendee,
-          totalAttendees: totalAttendees
+          totalAttendees: totalAttendees,
+          detalle: editingData.detalle?.trim() || null
         });
         
         alert('Ticket actualizado con ' + participantes.length + ' participantes');
@@ -275,7 +277,8 @@ export default function ListadosTPV({ user, profile }) {
           eventoTexto: null,
           totalGeneral: null,
           amountPerAttendee: null,
-          totalAttendees: null
+          totalAttendees: null,
+          detalle: editingData.detalle?.trim() || null
         });
         
         alert('Ticket actualizado');
@@ -364,12 +367,24 @@ export default function ListadosTPV({ user, profile }) {
     let totalAmount = 0;
     let totalSociedad = 0;
     let totalPersonal = 0;
+    let totalDevolver = 0; // Total a devolver
     const sociosDesglose = {}; // Desglose por socio
     const isAdmin = profile?.isAdmin;
     const currentUserId = user?.uid;
 
     filteredExpenses.forEach(exp => {
       let expAmount = 0;
+      let expDevolver = 0;
+      
+      // Calcular monto a devolver en este ticket
+      if (exp.productLines) {
+        exp.productLines.forEach(line => {
+          const label = (line.label || '').toUpperCase();
+          if (label.includes('A DEVOLVER')) {
+            expDevolver += Number(line.price || 0) * Number(line.qty || 1);
+          }
+        });
+      }
       
       // Nuevo sistema: tickets con participantes
       if (exp.category === 'sociedad' && exp.participantes && Array.isArray(exp.participantes)) {
@@ -399,6 +414,15 @@ export default function ListadosTPV({ user, profile }) {
           
           sociosDesglose[socioId].totalSociedad += amount;
           sociosDesglose[socioId].total += amount;
+          
+          // Añadir el monto a devolver proporcionalmente
+          if (expDevolver < 0) {
+            const proporcion = amount / Number(exp.amount || 1);
+            const devolverPorcion = expDevolver * proporcion;
+            totalDevolver += devolverPorcion;
+            if (!sociosDesglose[socioId].totalDevolver) sociosDesglose[socioId].totalDevolver = 0;
+            sociosDesglose[socioId].totalDevolver += devolverPorcion;
+          }
         });
         return; // Siguiente ticket
       }
@@ -409,9 +433,13 @@ export default function ListadosTPV({ user, profile }) {
       } else {
         const lines = exp.productLines || [];
         lines.forEach(line => {
-          const qty = Number(line.qty || 1);
-          const price = Number(line.price || 0);
-          expAmount += qty * price;
+          const label = (line.label || '').toUpperCase();
+          // NO sumar productos "A DEVOLVER" en el total normal
+          if (!label.includes('A DEVOLVER')) {
+            const qty = Number(line.qty || 1);
+            const price = Number(line.price || 0);
+            expAmount += qty * price;
+          }
         });
       }
       
@@ -430,7 +458,8 @@ export default function ListadosTPV({ user, profile }) {
           email: socioEmail,
           totalPersonal: 0,
           totalSociedad: 0,
-          total: 0
+          total: 0,
+          totalDevolver: 0
         };
       }
       
@@ -443,6 +472,12 @@ export default function ListadosTPV({ user, profile }) {
       }
       
       sociosDesglose[socioId].total += expAmount;
+      
+      // Añadir el monto a devolver
+      if (expDevolver < 0) {
+        totalDevolver += expDevolver;
+        sociosDesglose[socioId].totalDevolver += expDevolver;
+      }
     });
 
     return {
@@ -450,11 +485,15 @@ export default function ListadosTPV({ user, profile }) {
       totalAmount: totalAmount.toFixed(2),
       totalSociedad: totalSociedad.toFixed(2),
       totalPersonal: totalPersonal.toFixed(2),
+      totalDevolver: totalDevolver.toFixed(2),
+      totalNeto: (totalAmount + totalDevolver).toFixed(2), // Total - Devolver (devolver es negativo)
       sociosDesglose: Object.entries(sociosDesglose).map(([id, data]) => ({
         id,
         email: data.email,
         totalPersonal: data.totalPersonal.toFixed(2),
         totalSociedad: data.totalSociedad.toFixed(2),
+        totalDevolver: (data.totalDevolver || 0).toFixed(2),
+        totalNeto: (data.total + (data.totalDevolver || 0)).toFixed(2),
         total: data.total.toFixed(2)
       })).sort((a, b) => parseFloat(b.total) - parseFloat(a.total))
     };
@@ -507,7 +546,8 @@ export default function ListadosTPV({ user, profile }) {
       'Producto': '',
       'Cantidad': '',
       'Precio Unit.': '',
-      'Subtotal': ''
+      'Subtotal': '',
+      'Detalle': ''
     });
     excelData.push({
       'Fecha': '',
@@ -516,7 +556,8 @@ export default function ListadosTPV({ user, profile }) {
       'Producto': '',
       'Cantidad': '',
       'Precio Unit.': '',
-      'Subtotal': ''
+      'Subtotal': '',
+      'Detalle': ''
     });
     
     let currentUser = null;
@@ -567,7 +608,8 @@ export default function ListadosTPV({ user, profile }) {
           'Producto': line.label || '',
           'Cantidad': qty,
           'Precio Unit.': parseFloat(price.toFixed(2)),
-          'Subtotal': parseFloat(subtotal.toFixed(2))
+          'Subtotal': parseFloat(subtotal.toFixed(2)),
+          'Detalle': lineIdx === 0 ? (exp.detalle || '') : ''
         });
       });
     });
@@ -581,7 +623,8 @@ export default function ListadosTPV({ user, profile }) {
         'Producto': `TOTAL ${currentUser}`,
         'Cantidad': '',
         'Precio Unit.': '',
-        'Subtotal': parseFloat(userTotal.toFixed(2))
+        'Subtotal': parseFloat(userTotal.toFixed(2)),
+        'Detalle': ''
       });
     }
 
@@ -593,7 +636,8 @@ export default function ListadosTPV({ user, profile }) {
       'Producto': '',
       'Cantidad': '',
       'Precio Unit.': '',
-      'Subtotal': ''
+      'Subtotal': '',
+      'Detalle': ''
     });
 
     // Calcular total general
@@ -613,7 +657,8 @@ export default function ListadosTPV({ user, profile }) {
       'Producto': 'TOTAL GENERAL',
       'Cantidad': '',
       'Precio Unit.': '',
-      'Subtotal': parseFloat(totalGeneral.toFixed(2))
+      'Subtotal': parseFloat(totalGeneral.toFixed(2)),
+      'Detalle': ''
     });
 
     // Crear workbook de Excel
@@ -627,7 +672,8 @@ export default function ListadosTPV({ user, profile }) {
       { wch: 35 }, // Producto
       { wch: 10 }, // Cantidad
       { wch: 12 }, // Precio Unit.
-      { wch: 12 }  // Subtotal
+      { wch: 12 }, // Subtotal
+      { wch: 40 }  // Detalle
     ];
     
     const wb = XLSX.utils.book_new();
@@ -1078,6 +1124,42 @@ export default function ListadosTPV({ user, profile }) {
     }
   };
 
+  const descargarArchivoAutenticado = async (descarga) => {
+    try {
+      // Extraer año del nombre de archivo
+      const match = descarga.archivo.match(/(\d{4})/);
+      const year = match ? match[1] : '';
+      
+      if (!year) {
+        alert('No se pudo determinar el año del archivo');
+        return;
+      }
+
+      // Obtener la referencia del archivo en Storage
+      const fileRef = storageRef(storage, `resumen-mensual/${year}/${descarga.archivo}`);
+      
+      // Obtener la URL de descarga autenticada
+      const url = await getDownloadURL(fileRef);
+      
+      // Descargar el archivo usando fetch con las credenciales
+      const response = await fetch(url);
+      const blob = await response.blob();
+      
+      // Crear un enlace temporal para descargar
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = descarga.archivo;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error al descargar archivo:', error);
+      alert('Error al descargar el archivo. Verifica que tienes permisos.');
+    }
+  };
+
   const formatDate = (date) => {
     if (!date) return '';
     const d = date.toDate ? date.toDate() : new Date(date);
@@ -1260,7 +1342,7 @@ export default function ListadosTPV({ user, profile }) {
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 20,
             marginBottom: 32
           }}>
@@ -1285,14 +1367,24 @@ export default function ListadosTPV({ user, profile }) {
             <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalPersonal}€</div>
           </div>
           <div style={{
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            color: '#fff',
+            padding: 24,
+            borderRadius: 16,
+            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+          }}>
+            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>A Devolver</div>
+            <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalDevolver}€</div>
+          </div>
+          <div style={{
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             color: '#fff',
             padding: 24,
             borderRadius: 16,
             boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
           }}>
-            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>Total General</div>
-            <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalAmount}€</div>
+            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>Total Neto</div>
+            <div style={{ fontSize: 32, fontWeight: 700 }}>{totals.totalNeto}€</div>
           </div>
           </div>
         </>
@@ -1331,7 +1423,10 @@ export default function ListadosTPV({ user, profile }) {
                   Sociedad
                 </th>
                 <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                  Total
+                  A Devolver
+                </th>
+                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                  Total Neto
                 </th>
               </tr>
             </thead>
@@ -1347,8 +1442,11 @@ export default function ListadosTPV({ user, profile }) {
                   <td style={{ padding: '12px 16px', fontSize: 14, color: '#f59e0b', textAlign: 'right' }}>
                     {socio.totalSociedad}€
                   </td>
+                  <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, color: '#dc2626', textAlign: 'right' }}>
+                    {socio.totalDevolver}€
+                  </td>
                   <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 600, color: '#059669', textAlign: 'right' }}>
-                    {socio.total}€
+                    {socio.totalNeto}€
                   </td>
                 </tr>
               ))}
@@ -1362,8 +1460,11 @@ export default function ListadosTPV({ user, profile }) {
                 <td style={{ padding: '16px', fontSize: 18, fontWeight: 700, color: '#f59e0b', textAlign: 'right' }}>
                   {totals.totalSociedad}€
                 </td>
+                <td style={{ padding: '16px', fontSize: 18, fontWeight: 700, color: '#dc2626', textAlign: 'right' }}>
+                  {totals.totalDevolver}€
+                </td>
                 <td style={{ padding: '16px', fontSize: 20, fontWeight: 700, color: '#059669', textAlign: 'right' }}>
-                  {totals.totalAmount}€
+                  {totals.totalNeto}€
                 </td>
               </tr>
             </tbody>
@@ -1571,11 +1672,8 @@ export default function ListadosTPV({ user, profile }) {
                               <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                                   {descarga.url ? (
-                                    <a
-                                      href={descarga.url}
-                                      download
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                    <button
+                                      onClick={() => descargarArchivoAutenticado(descarga)}
                                       style={{
                                         display: 'inline-block',
                                         padding: '6px 12px',
@@ -1585,12 +1683,15 @@ export default function ListadosTPV({ user, profile }) {
                                         backgroundColor: '#10b981',
                                         border: 'none',
                                         borderRadius: 6,
-                                        textDecoration: 'none',
-                                        cursor: 'pointer'
+                                        cursor: 'pointer',
+                                        transition: 'background-color 0.2s'
                                       }}
+                                      onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
+                                      onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
+                                      title="Descargar archivo"
                                     >
                                       📥
-                                    </a>
+                                    </button>
                                   ) : (
                                     <span style={{ fontSize: 12, color: '#9ca3af' }}>-</span>
                                   )}
@@ -2109,11 +2210,17 @@ function HistoricoTickets({ filteredExpenses, dateFrom, dateTo, onTicketDeleted 
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
                   Productos
                 </th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  Detalle
+                </th>
                 <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                   Tipo
                 </th>
                 <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                   Total
+                </th>
+                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                  A Devolver
                 </th>
                 <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
                   Tu Gasto
@@ -2147,6 +2254,21 @@ function HistoricoTickets({ filteredExpenses, dateFrom, dateTo, onTicketDeleted 
                           </div>
                         ))}
                       </div>
+                    </td>
+
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#6b7280', maxWidth: 200 }}>
+                      {h.detalle ? (
+                        <div style={{ 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'normal',
+                          lineHeight: 1.4
+                        }}>
+                          {h.detalle}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#d1d5db', fontSize: 12 }}>—</span>
+                      )}
                     </td>
 
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -2183,6 +2305,13 @@ function HistoricoTickets({ filteredExpenses, dateFrom, dateTo, onTicketDeleted 
 
                     <td style={{ padding: '12px 16px', fontSize: 16, fontWeight: 700, color: '#059669', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {Number(h.amount || 0).toFixed(2)}€
+                    </td>
+
+                    <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 700, color: '#dc2626', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const devolver = (h.productLines || []).filter(pl => (pl.label || '').toUpperCase().includes('A DEVOLVER')).reduce((sum, pl) => sum + (Number(pl.price || 0) * Number(pl.qty || 1)), 0);
+                        return devolver < 0 ? `${devolver.toFixed(2)}€` : '—';
+                      })()}
                     </td>
 
                     <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -2422,6 +2551,31 @@ function HistoricoTickets({ filteredExpenses, dateFrom, dateTo, onTicketDeleted 
                               </div>
                             </>
                           )}
+
+                          {/* Campo de detalle */}
+                          <div style={{ marginBottom: 16 }}>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                              📝 Detalle / Notas (opcional)
+                            </label>
+                            <textarea 
+                              value={editingData.detalle || ''}
+                              onChange={(e) => setEditingData(d => ({ ...d, detalle: e.target.value }))}
+                              placeholder="Añade información adicional sobre esta compra..."
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                fontSize: 13,
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                background: '#f9fafb',
+                                color: '#374151',
+                                fontFamily: 'inherit',
+                                resize: 'vertical',
+                                minHeight: 60,
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
 
                           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                             <button

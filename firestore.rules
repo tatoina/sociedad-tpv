@@ -48,9 +48,23 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null;
     }
 
+    // Temporary Events: all authenticated users can read, create, update and delete
+    match /temporaryEvents/{eventId} {
+      allow read, list: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
     // Historial Resumenes: all authenticated users can read, only admin can write
     match /historial-resumenes/{docId} {
       allow read, list: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Global Config: all authenticated users can read, only admin can write
+    match /config/{configId} {
+      allow read: if request.auth != null;
       allow create, update, delete: if isAdmin();
     }
   }

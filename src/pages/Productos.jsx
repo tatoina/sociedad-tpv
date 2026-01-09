@@ -13,6 +13,8 @@ export default function Productos({ profile }) {
   const [sortField, setSortField] = useState("label");
   const [sortOrder, setSortOrder] = useState("asc");
   const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -82,6 +84,7 @@ export default function Productos({ profile }) {
   };
 
   const filteredAndSortedProducts = products
+    .filter(p => !p.label.startsWith("[Categoría]")) // Excluir productos placeholder de categorías
     .filter(p => {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -118,6 +121,51 @@ export default function Productos({ profile }) {
     }
   };
 
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      alert("Introduce un nombre para la categoría");
+      return;
+    }
+    if (existingCategories.includes(newCategoryName.trim())) {
+      alert("Esta categoría ya existe");
+      return;
+    }
+    try {
+      // Crear un producto placeholder para la categoría
+      await addProduct({ 
+        label: `[Categoría] ${newCategoryName.trim()}`, 
+        category: newCategoryName.trim(), 
+        price: 0, 
+        active: false 
+      });
+      setNewCategoryName("");
+      alert(`Categoría "${newCategoryName.trim()}" creada correctamente`);
+    } catch (err) {
+      console.error("Error creando categoría:", err);
+      alert("Error creando categoría: " + (err.message || err));
+    }
+  };
+
+  const handleDeleteCategory = async (categoryName) => {
+    const productsInCategory = products.filter(p => p.category === categoryName && !p.label.startsWith("[Categoría]"));
+    if (productsInCategory.length > 0) {
+      alert(`No se puede eliminar la categoría "${categoryName}" porque tiene ${productsInCategory.length} producto(s) asociado(s)`);
+      return;
+    }
+    if (!confirm(`¿Eliminar la categoría "${categoryName}"?`)) return;
+    try {
+      // Eliminar el producto placeholder de la categoría
+      const categoryProduct = products.find(p => p.category === categoryName && p.label.startsWith("[Categoría]"));
+      if (categoryProduct) {
+        await deleteProduct(categoryProduct.id);
+      }
+      alert(`Categoría "${categoryName}" eliminada`);
+    } catch (err) {
+      console.error("Error eliminando categoría:", err);
+      alert("Error eliminando categoría: " + (err.message || err));
+    }
+  };
+
   return (
     <div style={{padding:12}}>
       <div style={{
@@ -129,6 +177,97 @@ export default function Productos({ profile }) {
         boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
       }}>
         <h3 style={{margin:0, fontSize:24, fontWeight:700}}>Gestión de Productos</h3>
+      </div>
+
+      <div style={{marginBottom:12}}>
+        <div style={{
+          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+          color: '#fff',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer'
+        }}
+        onClick={() => setShowCategoryManager(!showCategoryManager)}
+        >
+          <h4 style={{margin:0, fontSize:18, fontWeight:600}}>📁 Gestionar Categorías</h4>
+          <span style={{fontSize:20}}>{showCategoryManager ? '▼' : '▶'}</span>
+        </div>
+        
+        {showCategoryManager && (
+          <div style={{marginBottom:20, padding:16, background:'#f9fafb', borderRadius:8, border:'2px solid #10b981'}}>
+            <div style={{marginBottom:16}}>
+              <div style={{display:'flex', gap:8, marginBottom:12}}>
+                <input 
+                  className="full-input" 
+                  placeholder="Nombre de la nueva categoría" 
+                  value={newCategoryName} 
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                  style={{flex:1}}
+                />
+                <button 
+                  className="btn-primary" 
+                  onClick={handleAddCategory}
+                  style={{background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', whiteSpace:'nowrap'}}
+                >
+                  ➕ Crear Categoría
+                </button>
+              </div>
+            </div>
+            
+            <div style={{marginTop:16}}>
+              <h5 style={{margin:'0 0 12px 0', fontSize:15, fontWeight:600, color:'#374151'}}>Categorías existentes:</h5>
+              {existingCategories.length === 0 ? (
+                <p style={{color:'#6b7280', fontSize:14, margin:0}}>No hay categorías creadas</p>
+              ) : (
+                <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+                  {existingCategories.map(cat => {
+                    const count = products.filter(p => p.category === cat && !p.label.startsWith("[Categoría]")).length;
+                    return (
+                      <div 
+                        key={cat} 
+                        style={{
+                          display:'flex',
+                          alignItems:'center',
+                          gap:8,
+                          padding:'8px 12px',
+                          background:'#fff',
+                          border:'2px solid #e5e7eb',
+                          borderRadius:8,
+                          fontSize:14
+                        }}
+                      >
+                        <span style={{fontWeight:600}}>{cat}</span>
+                        <span style={{color:'#6b7280', fontSize:12}}>({count} productos)</span>
+                        {count === 0 && (
+                          <button 
+                            onClick={() => handleDeleteCategory(cat)}
+                            style={{
+                              background:'#ef4444',
+                              color:'#fff',
+                              border:'none',
+                              borderRadius:4,
+                              padding:'4px 8px',
+                              fontSize:12,
+                              cursor:'pointer',
+                              fontWeight:600
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{marginBottom:12}}>
@@ -225,7 +364,7 @@ export default function Productos({ profile }) {
               onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
             />
             <div style={{marginTop: 8, fontSize: 13, color: '#6b7280'}}>
-              Mostrando {filteredAndSortedProducts.length} de {products.length} productos
+              Mostrando {filteredAndSortedProducts.length} de {products.filter(p => !p.label.startsWith("[Categoría]")).length} productos
             </div>
           </div>
           <div style={{overflowX:'auto'}}>

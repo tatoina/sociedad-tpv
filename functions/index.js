@@ -2,6 +2,7 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const XLSX = require('xlsx');
+const cors = require('cors')({ origin: true });
 
 admin.initializeApp();
 
@@ -26,6 +27,26 @@ const getEmailTransporter = () => {
   });
 };
 
+// Función helper para enviar email con retry
+const sendEmailWithRetry = async (transporter, mailOptions, maxRetries = 3) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await transporter.sendMail(mailOptions);
+      return { success: true, attempt };
+    } catch (error) {
+      console.log(`Intento ${attempt}/${maxRetries} falló para ${mailOptions.to}: ${error.message}`);
+      
+      if (attempt === maxRetries) {
+        throw error; // Si es el último intento, lanzar el error
+      }
+      
+      // Esperar antes del siguiente intento (delay exponencial: 1s, 2s, 4s)
+      const delay = Math.pow(2, attempt - 1) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+};
+
 // Función para notificar cuando se establece la fecha de cena
 exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
   // Verificar que el usuario esté autenticado
@@ -40,6 +61,20 @@ exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    // Verificar si los emails están habilitados
+    const configDoc = await admin.firestore().collection('config').doc('global').get();
+    const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+    
+    if (!emailsEnabled) {
+      console.log('⚠️ Emails desactivados. No se enviarán notificaciones.');
+      return {
+        success: true,
+        message: 'Emails desactivados. No se enviaron notificaciones.',
+        successful: 0,
+        failed: 0,
+        disabled: true
+      };
+    }
     // Obtener todos los usuarios
     const usersSnapshot = await admin.firestore().collection('users').get();
     const users = usersSnapshot.docs.map(doc => ({
@@ -232,6 +267,21 @@ exports.notificarInscripcionEvento = functions.https.onCall(async (data, context
   }
 
   try {
+    // Verificar si los emails están habilitados
+    const configDoc = await admin.firestore().collection('config').doc('global').get();
+    const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+    
+    if (!emailsEnabled) {
+      console.log('⚠️ Emails desactivados. No se enviarán notificaciones.');
+      return {
+        success: true,
+        message: 'Emails desactivados. No se enviaron notificaciones.',
+        successful: 0,
+        failed: 0,
+        disabled: true
+      };
+    }
+    
     console.log(`📧 Preparando notificación para evento: ${eventType}, usuario: ${userName}`);
     
     // Obtener todos los usuarios
@@ -878,6 +928,21 @@ exports.notificarReservaMesa = functions.https.onCall(async (data, context) => {
   }
 
   try {
+    // Verificar si los emails están habilitados
+    const configDoc = await admin.firestore().collection('config').doc('global').get();
+    const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+    
+    if (!emailsEnabled) {
+      console.log('⚠️ Emails desactivados. No se enviarán notificaciones.');
+      return {
+        success: true,
+        message: 'Emails desactivados. No se enviaron notificaciones.',
+        successful: 0,
+        failed: 0,
+        disabled: true
+      };
+    }
+
     // Obtener todos los usuarios
     const usersSnapshot = await admin.firestore().collection('users').get();
     const users = usersSnapshot.docs.map(doc => ({
@@ -1030,11 +1095,11 @@ exports.notificarReservaMesa = functions.https.onCall(async (data, context) => {
       };
 
       try {
-        await transporter.sendMail(mailOptions);
-        console.log(`Email enviado a ${user.email}`);
-        return { success: true, email: user.email };
+        const result = await sendEmailWithRetry(transporter, mailOptions);
+        console.log(`Email enviado a ${user.email} (intento ${result.attempt})`);
+        return { success: true, email: user.email, attempt: result.attempt };
       } catch (error) {
-        console.error(`Error enviando email a ${user.email}:`, error);
+        console.error(`Error enviando email a ${user.email} después de 3 intentos:`, error);
         return { success: false, email: user.email, error: error.message };
       }
     });
@@ -1072,6 +1137,33 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
   }
 
   try {
+    // Verificar si los emails están habilitados
+    const configDoc = await admin.firestore().collection('config').doc('global').get();
+    const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+    
+    if (!emailsEnabled) {
+      console.log('⚠️ Emails desactivados. No se enviarán notificaciones.');
+      return {
+        success: true,
+        message: 'Emails desactivados. No se enviaron notificaciones.',
+        successful: 0,
+        failed: 0,
+        disabled: true
+      };
+    }
+
+    // Si es un evento temporal, obtener su información
+    let eventTitle = eventType;
+    let tempEventData = null;
+    if (eventType.startsWith('TEMP_')) {
+      const eventId = eventType.replace('TEMP_', '');
+      const tempEventDoc = await admin.firestore().collection('temporaryEvents').doc(eventId).get();
+      if (tempEventDoc.exists) {
+        tempEventData = tempEventDoc.data();
+        eventTitle = tempEventData.titulo || eventType;
+      }
+    }
+
     // Obtener todos los usuarios
     const usersSnapshot = await admin.firestore().collection('users').get();
     const users = usersSnapshot.docs.map(doc => ({
@@ -1082,7 +1174,7 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
     // Filtrar usuarios que tengan email y excluir admin@admin.es
     const usersWithEmail = users.filter(user => user.email && user.email !== 'admin@admin.es');
 
-    console.log(`Enviando emails a ${usersWithEmail.length} usuarios sobre inscripción de ${userName} a ${eventType}`);
+    console.log(`Enviando emails a ${usersWithEmail.length} usuarios sobre inscripción de ${userName} a ${eventTitle}`);
 
     const transporter = getEmailTransporter();
     
@@ -1106,32 +1198,40 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
     let emoji = '🎉';
     let color = '#1976d2';
     let colorSecundario = '#1565c0';
-    switch(eventType) {
-      case 'CUMPLEAÑOS MES':
-        emoji = '🎂';
-        color = '#f59e0b';
-        colorSecundario = '#d97706';
-        break;
-      case 'FIESTAS DE ESTELLA':
-        emoji = '🎊';
-        color = '#8b5cf6';
-        colorSecundario = '#7c3aed';
-        break;
-      case 'FERIAS':
-        emoji = '🎪';
-        color = '#ec4899';
-        colorSecundario = '#db2777';
-        break;
-      case 'LOTERIA NAVIDAD':
-        emoji = '🎟️';
-        color = '#10b981';
-        colorSecundario = '#059669';
-        break;
-      case 'COTILLON DE REYES':
-        emoji = '👑';
-        color = '#6366f1';
-        colorSecundario = '#4f46e5';
-        break;
+    
+    // Para eventos temporales, usar colores especiales
+    if (eventType.startsWith('TEMP_')) {
+      emoji = '📅';
+      color = '#10b981';
+      colorSecundario = '#059669';
+    } else {
+      switch(eventType) {
+        case 'CUMPLEAÑOS MES':
+          emoji = '🎂';
+          color = '#f59e0b';
+          colorSecundario = '#d97706';
+          break;
+        case 'FIESTAS DE ESTELLA':
+          emoji = '🎊';
+          color = '#8b5cf6';
+          colorSecundario = '#7c3aed';
+          break;
+        case 'FERIAS':
+          emoji = '🎪';
+          color = '#ec4899';
+          colorSecundario = '#db2777';
+          break;
+        case 'LOTERIA NAVIDAD':
+          emoji = '🎟️';
+          color = '#10b981';
+          colorSecundario = '#059669';
+          break;
+        case 'COTILLON DE REYES':
+          emoji = '👑';
+          color = '#6366f1';
+          colorSecundario = '#4f46e5';
+          break;
+      }
     }
 
     // Preparar emails
@@ -1139,7 +1239,7 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
       const mailOptions = {
         from: functions.config().gmail.email,
         to: user.email,
-        subject: `${emoji} Nueva Inscripción - ${eventType}`,
+        subject: `${emoji} Nueva Inscripción - ${eventTitle}`,
         html: `
           <!DOCTYPE html>
           <html>
@@ -1207,14 +1307,21 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
               <div class="content">
                 <div class="event-box">
                   <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
-                  <div style="font-size: 20px; font-weight: 700; color: ${colorSecundario};">${eventType}</div>
+                  <div style="font-size: 20px; font-weight: 700; color: ${colorSecundario};">${eventTitle}</div>
                   <div style="margin-top: 15px; font-size: 18px; font-weight: 600; color: ${color};">
                     ${userName}
                   </div>
                 </div>
                 
                 <div style="margin-top: 20px;">
-                  ${(adultos !== undefined || ninos !== undefined) ? `
+                  ${eventType === 'LOTERIA NAVIDAD' ? `
+                    ${decimos !== undefined ? `
+                      <div class="detail-row">
+                        <span class="detail-label">🎟️ Décimos:</span>
+                        <span class="detail-value">${decimos}</span>
+                      </div>
+                    ` : ''}
+                  ` : `
                     ${adultos !== undefined ? `
                       <div class="detail-row">
                         <span class="detail-label">👥 Adultos:</span>
@@ -1230,16 +1337,10 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
                     ${(adultos !== undefined && ninos !== undefined) ? `
                       <div class="detail-row">
                         <span class="detail-label">📊 Total:</span>
-                        <span class="detail-value" style="font-weight: 700;">${adultos + ninos}</span>
+                        <span class="detail-value" style="font-weight: 700;">${Number(adultos) + Number(ninos)}</span>
                       </div>
                     ` : ''}
-                  ` : ''}
-                  ${decimos !== undefined ? `
-                    <div class="detail-row">
-                      <span class="detail-label">🎟️ Décimos:</span>
-                      <span class="detail-value">${decimos}</span>
-                    </div>
-                  ` : ''}
+                  `}
                   ${fecha && fechaFormateada ? `
                     <div class="detail-row">
                       <span class="detail-label">📅 Fecha:</span>
@@ -1264,11 +1365,11 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
       };
 
       try {
-        await transporter.sendMail(mailOptions);
-        console.log(`Email enviado a ${user.email}`);
-        return { success: true, email: user.email };
+        const result = await sendEmailWithRetry(transporter, mailOptions);
+        console.log(`Email enviado a ${user.email} (intento ${result.attempt})`);
+        return { success: true, email: user.email, attempt: result.attempt };
       } catch (error) {
-        console.error(`Error enviando email a ${user.email}:`, error);
+        console.error(`Error enviando email a ${user.email} después de 3 intentos:`, error);
         return { success: false, email: user.email, error: error.message };
       }
     });
@@ -1288,7 +1389,7 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
 
   } catch (error) {
     console.error('Error en notificarInscripcionEventoGeneral:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    throw new functions.https.HttpsError('internal', 'Error al enviar notificaciones: ' + error.message);
   }
 });
 
@@ -1360,5 +1461,214 @@ exports.borrarInscripcionesEvento = functions.https.onCall(async (data, context)
   } catch (error) {
     console.error('Error en borrarInscripcionesEvento:', error);
     throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+// Función para notificar cuando se crea un nuevo evento temporal
+exports.notificarNuevoEventoTemporal = functions.https.onCall(async (data, context) => {
+  // Verificar que el usuario esté autenticado
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Usuario no autenticado');
+  }
+
+  const { eventId, titulo, fecha, tipoComida } = data;
+
+  if (!eventId || !titulo || !fecha) {
+    throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos');
+  }
+
+  try {
+    // Verificar si los emails están habilitados
+    const configDoc = await admin.firestore().collection('config').doc('global').get();
+    const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+    
+    if (!emailsEnabled) {
+      console.log('⚠️ Emails desactivados. No se enviarán notificaciones.');
+      return {
+        success: true,
+        message: 'Emails desactivados. No se enviaron notificaciones.',
+        successful: 0,
+        failed: 0,
+        disabled: true
+      };
+    }
+
+    // Obtener todos los usuarios
+    const usersSnapshot = await admin.firestore().collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filtrar usuarios que tengan email y excluir admin@admin.es
+    const usersWithEmail = users.filter(user => user.email && user.email !== 'admin@admin.es');
+
+    console.log(`Enviando emails a ${usersWithEmail.length} usuarios sobre nuevo evento: ${titulo}`);
+
+    const transporter = getEmailTransporter();
+    
+    if (!transporter) {
+      throw new functions.https.HttpsError('failed-precondition', 'Configuración de email no disponible');
+    }
+
+    // Formatear fecha
+    let fechaFormateada = fecha;
+    if (fecha && fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const date = new Date(fecha + 'T00:00:00');
+      const dia = date.getDate();
+      const mes = date.getMonth() + 1;
+      const año = date.getFullYear();
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const diaSemana = dias[date.getDay()];
+      fechaFormateada = `${diaSemana} ${dia}/${mes}/${año}`;
+    }
+
+    // Preparar emails
+    const emailPromises = usersWithEmail.map(async (user) => {
+      const mailOptions = {
+        from: functions.config().gmail.email,
+        to: user.email,
+        subject: `📅 Nuevo Evento Creado - ${titulo}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f9f9f9;
+              }
+              .header {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 30px 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+              }
+              .content {
+                background: white;
+                padding: 30px;
+                border-radius: 0 0 8px 8px;
+              }
+              .event-box {
+                background: #d1fae5;
+                border: 2px solid #10b981;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+              }
+              .detail-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .detail-label {
+                font-weight: 600;
+                color: #374151;
+              }
+              .detail-value {
+                color: #10b981;
+                font-weight: 500;
+              }
+              .button {
+                display: inline-block;
+                padding: 15px 30px;
+                background: #10b981;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                margin-top: 20px;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 12px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">📅 Sociedad TPV</h1>
+                <p style="margin: 10px 0 0 0;">¡Nuevo Evento Disponible!</p>
+              </div>
+              <div class="content">
+                <p>Hola <strong>${user.name || user.email}</strong>,</p>
+                
+                <p>Se ha creado un nuevo evento al que puedes inscribirte:</p>
+                
+                <div class="event-box">
+                  <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+                  <div style="font-size: 24px; font-weight: 700; color: #059669; margin-bottom: 15px;">${titulo}</div>
+                  
+                  <div style="margin-top: 20px;">
+                    <div class="detail-row">
+                      <span class="detail-label">📅 Fecha:</span>
+                      <span class="detail-value">${fechaFormateada}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">🍽️ Tipo:</span>
+                      <span class="detail-value">${tipoComida || 'COMIDA'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <p style="margin-top: 20px; text-align: center; font-size: 16px;">
+                  <strong>¡No te lo pierdas!</strong><br>
+                  Accede a la aplicación para inscribirte.
+                </p>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="https://sociedad-tpv.web.app" class="button">
+                    Ver Evento e Inscribirme
+                  </a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>Este es un email automático, por favor no respondas a este mensaje.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      try {
+        const result = await sendEmailWithRetry(transporter, mailOptions);
+        console.log(`Email enviado a ${user.email} (intento ${result.attempt})`);
+        return { success: true, email: user.email, attempt: result.attempt };
+      } catch (error) {
+        console.error(`Error enviando email a ${user.email} después de 3 intentos:`, error);
+        return { success: false, email: user.email, error: error.message };
+      }
+    });
+
+    const results = await Promise.allSettled(emailPromises);
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.length - successful;
+
+    console.log(`Emails enviados: ${successful} exitosos, ${failed} fallidos`);
+
+    return {
+      success: true,
+      message: `Emails enviados: ${successful} exitosos, ${failed} fallidos`,
+      successful,
+      failed
+    };
+
+  } catch (error) {
+    console.error('Error en notificarNuevoEventoTemporal:', error);
+    throw new functions.https.HttpsError('internal', 'Error al enviar notificaciones: ' + error.message);
   }
 });

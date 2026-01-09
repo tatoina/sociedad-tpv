@@ -367,7 +367,7 @@ export async function getAllSocios() {
   }
 }
 
-export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null, attendees = null, eventoTexto = null, totalGeneral = null, amountPerAttendee = null, totalAttendees = null, participantes = null } = {}) {
+export async function addSale({ uid, userEmail, item, category, amount, date = null, productId = null, productLines = null, attendees = null, eventoTexto = null, totalGeneral = null, amountPerAttendee = null, totalAttendees = null, participantes = null, detalle = null, fotoTicketURL = null } = {}) {
   if (!uid) throw new Error("UID requerido para addSale");
   const payload = {
     uid,
@@ -384,6 +384,8 @@ export async function addSale({ uid, userEmail, item, category, amount, date = n
     amountPerAttendee: amountPerAttendee || null,
     totalAttendees: totalAttendees || null,
     participantes: participantes || null, // Array de {uid, email, nombre, attendees, amount}
+    detalle: detalle || null,
+    fotoTicketURL: fotoTicketURL || null,
     date: date ? date : serverTimestamp(),
     createdAt: serverTimestamp()
   };
@@ -407,6 +409,9 @@ export async function updateExpense(expenseId, data) {
   if (data.amountPerAttendee !== undefined) allowed.amountPerAttendee = data.amountPerAttendee;
   if (data.totalAttendees !== undefined) allowed.totalAttendees = data.totalAttendees;
   if (data.participantes !== undefined) allowed.participantes = data.participantes;
+  if (data.detalle !== undefined) allowed.detalle = data.detalle;
+  if (data.fotoTicketURL !== undefined) allowed.fotoTicketURL = data.fotoTicketURL;
+  if (data.detalle !== undefined) allowed.detalle = data.detalle;
   allowed.updatedAt = serverTimestamp();
   await updateDoc(ref, allowed);
   return true;
@@ -674,6 +679,90 @@ export async function notificarFechaCena(eventType, fechaCena) {
     return result.data;
   } catch (err) {
     console.error("notificarFechaCena error:", err);
+    throw err;
+  }
+}
+
+// Configuración global de la aplicación
+export async function setGlobalConfig(config) {
+  try {
+    const docRef = doc(db, "config", "global");
+    await setDoc(docRef, {
+      ...config,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return config;
+  } catch (err) {
+    console.error("setGlobalConfig error:", err);
+    throw err;
+  }
+}
+
+export async function getGlobalConfig() {
+  try {
+    const docRef = doc(db, "config", "global");
+    const snapshot = await getDoc(docRef);
+    return snapshot.exists() ? snapshot.data() : { emailsEnabled: true };
+  } catch (err) {
+    console.error("getGlobalConfig error:", err);
+    return { emailsEnabled: true };
+  }
+}
+
+// ============================================
+// GESTIÓN DE EVENTOS TEMPORALES
+// ============================================
+
+// Añadir evento temporal
+export async function addTemporaryEvent(data) {
+  try {
+    const docRef = await addDoc(collection(db, "temporaryEvents"), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return { id: docRef.id, ...data };
+  } catch (err) {
+    console.error("addTemporaryEvent error:", err);
+    throw err;
+  }
+}
+
+// Obtener todos los eventos temporales
+export async function getTemporaryEvents() {
+  try {
+    const q = query(
+      collection(db, "temporaryEvents"),
+      orderBy("fecha", "desc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.error("getTemporaryEvents error:", err);
+    throw err;
+  }
+}
+
+// Eliminar evento temporal
+export async function deleteTemporaryEvent(id) {
+  if (!id) throw new Error("ID de evento requerido");
+  
+  try {
+    // Primero eliminar todas las inscripciones asociadas a este evento temporal
+    const q = query(
+      collection(db, "eventRegistrations"),
+      where("eventType", "==", `TEMP_${id}`)
+    );
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    
+    // Luego eliminar el evento temporal
+    await deleteDoc(doc(db, "temporaryEvents", id));
+    
+    return { success: true, registrationsDeleted: snapshot.docs.length };
+  } catch (err) {
+    console.error("deleteTemporaryEvent error:", err);
     throw err;
   }
 }
