@@ -43,6 +43,83 @@ function fromInputDateTime(val) {
   return new Date(val);
 }
 
+// ---- MODO MICRO helpers ----
+function normalizeForVoice(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+const NUMEROS_ES = {
+  'un': 1, 'uno': 1, 'una': 1, 'dos': 2, 'tres': 3,
+  'cuatro': 4, 'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8,
+  'nueve': 9, 'diez': 10, 'once': 11, 'doce': 12,
+  'trece': 13, 'catorce': 14, 'quince': 15, 'veinte': 20
+};
+
+function scoreSimilarity(spoken, productNorm) {
+  if (!spoken || !productNorm) return 0;
+  if (spoken === productNorm) return 100;
+  if (spoken.includes(productNorm) && productNorm.length >= 3) return 85;
+  if (productNorm.includes(spoken) && spoken.length >= 3) return 80;
+  const spokenDeplural = spoken.replace(/es\b/g, '').replace(/s\b/g, '').replace(/\s+/g, ' ').trim();
+  if (spokenDeplural.length >= 3 && productNorm.includes(spokenDeplural)) return 75;
+  if (spokenDeplural.length >= 3 && spokenDeplural.includes(productNorm)) return 70;
+  const prodWords = productNorm.split(/\s+/).filter(w => w.length >= 3);
+  const spokenWords = [...new Set([
+    ...spoken.split(/\s+/),
+    ...spokenDeplural.split(/\s+/)
+  ])].filter(w => w.length >= 3);
+  if (!prodWords.length || !spokenWords.length) return 0;
+  let matchCount = 0;
+  for (const pw of prodWords) {
+    for (const sw of spokenWords) {
+      const [shorter, longer] = pw.length <= sw.length ? [pw, sw] : [sw, pw];
+      if (longer.includes(shorter) && shorter.length >= 3) matchCount++;
+      else if (shorter.length >= 4 && longer.startsWith(shorter.slice(0, -1))) matchCount += 0.5;
+    }
+  }
+  return matchCount > 0 ? 40 + Math.min(30, (matchCount / prodWords.length) * 30) : 0;
+}
+
+function parseVoiceText(text, products) {
+  let normalized = normalizeForVoice(text);
+  Object.entries(NUMEROS_ES)
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([word, num]) => {
+      normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'g'), ` ${num} `);
+    });
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  const normProds = products.map(p => ({ ...p, _norm: normalizeForVoice(p.label || '') }));
+  const parts = normalized.split(/\s+(?:y|mas|tambien|ademas)\s+/);
+  const result = [];
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const numMatch = trimmed.match(/^(\d+)\s+(.+)$/);
+    const qty = numMatch ? (parseInt(numMatch[1], 10) || 1) : 1;
+    const productText = numMatch ? numMatch[2].trim() : trimmed;
+    const normSpoken = normalizeForVoice(productText);
+    let bestMatch = null, bestScore = 0;
+    for (const prod of normProds) {
+      const score = scoreSimilarity(normSpoken, prod._norm);
+      if (score > bestScore) { bestScore = score; bestMatch = prod; }
+    }
+    if (bestMatch && bestScore >= 40) {
+      const existing = result.findIndex(r => r.productId === bestMatch.id);
+      if (existing >= 0) result[existing].qty += qty;
+      else result.push({ productId: bestMatch.id, label: bestMatch.label, price: Number(bestMatch.price) || 0, qty, matched: true });
+    } else if (productText.length > 1) {
+      result.push({ productId: null, label: productText, price: 0, qty, matched: false });
+    }
+  }
+  return result;
+}
+// ---- fin MODO MICRO helpers ----
+
 export default function TPV({ user, profile }) {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -72,6 +149,11 @@ export default function TPV({ user, profile }) {
   const [fotoTicketURL, setFotoTicketURL] = useState("");
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [viewMode, setViewMode] = useState('categories'); // 'categories' o 'products'
+  // MODO MICRO
+  const [microListening, setMicroListening] = useState(false);
+  const [showMicroModal, setShowMicroModal] = useState(false);
+  const [microRawText, setMicroRawText] = useState('');
+  const [microPreview, setMicroPreview] = useState([]);
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -661,6 +743,55 @@ export default function TPV({ user, profile }) {
   const removeLineFromEditing = (index) => setEditingData(prev => ({ ...prev, productLines: prev.productLines.filter((_, i) => i !== index) }));
   const updateLineEditing = (index, values) => setEditingData(prev => ({ ...prev, productLines: prev.productLines.map((l, i) => i === index ? { ...l, ...values } : l) }));
 
+  // ---- MODO MICRO ----
+  const startMicro = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Tu navegador no soporta reconocimiento de voz.\nUsa Chrome o Edge.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+    setMicroListening(true);
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript;
+      setMicroRawText(text);
+      const detected = parseVoiceText(text, products);
+      setMicroPreview(detected);
+      setShowMicroModal(true);
+      setMicroListening(false);
+    };
+    recognition.onerror = (event) => {
+      setMicroListening(false);
+      if (event.error !== 'no-speech') alert('Error al reconocer voz: ' + event.error);
+    };
+    recognition.onend = () => setMicroListening(false);
+    recognition.start();
+  };
+
+  const confirmMicroTicket = () => {
+    const matched = microPreview.filter(i => i.matched);
+    if (!matched.length) return;
+    setCart(prev => {
+      const newCart = [...prev];
+      matched.forEach(item => {
+        const idx = newCart.findIndex(c => c.productId === item.productId);
+        if (idx >= 0) {
+          newCart[idx] = { ...newCart[idx], qty: newCart[idx].qty + item.qty };
+        } else {
+          newCart.push({ productId: item.productId, label: item.label, price: item.price, qty: item.qty });
+        }
+      });
+      return newCart;
+    });
+    setShowMicroModal(false);
+    setMicroPreview([]);
+    setMicroRawText('');
+  };
+
   return (
     <div style={{padding:12}}>
       <div style={{display:'flex', flexDirection:'column', gap:12}}>
@@ -715,7 +846,34 @@ export default function TPV({ user, profile }) {
                 >
                   {showProducts ? '▼ Ocultar Productos' : '▶ Mostrar Productos'}
                 </button>
-                
+
+                {/* Botón MODO MICRO */}
+                <button
+                  onClick={startMicro}
+                  disabled={microListening}
+                  style={{
+                    padding: '8px 16px',
+                    background: microListening
+                      ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                      : 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: microListening ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    boxShadow: microListening ? '0 2px 6px rgba(220,38,38,0.4)' : '0 2px 6px rgba(124,58,237,0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{microListening ? '🔴' : '🎤'}</span>
+                  {microListening ? 'Escuchando...' : 'MODO MICRO'}
+                </button>
+
                 {/* Controles solo en vista de productos */}
                 {viewMode === 'products' && (
                 <>
@@ -2800,6 +2958,149 @@ export default function TPV({ user, profile }) {
           ))}
         </div>
       </div>
+
+      {/* ---- MODAL MODO MICRO ---- */}
+      {showMicroModal && (
+        <div
+          onClick={() => { setShowMicroModal(false); setMicroPreview([]); setMicroRawText(''); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: 16
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 16, padding: 24,
+              maxWidth: 480, width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+              maxHeight: '85vh', overflowY: 'auto'
+            }}
+          >
+            <h3 style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              🎤 Ticket por voz
+            </h3>
+            <div style={{
+              fontSize: 13, color: '#6b7280', marginBottom: 16, fontStyle: 'italic',
+              background: '#f3f4f6', padding: '8px 12px', borderRadius: 8, lineHeight: 1.5
+            }}>
+              "{microRawText}"
+            </div>
+
+            {microPreview.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#dc2626', fontWeight: 600 }}>
+                No se detectaron productos. Cancela e inténtalo de nuevo.
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  {microPreview.map((item, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', marginBottom: 8,
+                        background: item.matched ? '#f0fdf4' : '#fef2f2',
+                        border: `1px solid ${item.matched ? '#86efac' : '#fca5a5'}`,
+                        borderRadius: 10
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: item.matched ? '#166534' : '#991b1b' }}>
+                          {item.matched ? '✅' : '⚠️'} {item.label}
+                        </div>
+                        {item.matched && (
+                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                            {Number(item.price).toFixed(2)}€ c/u · subtotal: {(item.price * item.qty).toFixed(2)}€
+                          </div>
+                        )}
+                        {!item.matched && (
+                          <div style={{ fontSize: 11, color: '#dc2626', marginTop: 2 }}>Producto no reconocido</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => setMicroPreview(prev => prev.map((p, idx) =>
+                            idx === i ? { ...p, qty: Math.max(1, p.qty - 1) } : p
+                          ))}
+                          style={{
+                            width: 28, height: 28, padding: 0, fontSize: 18, fontWeight: 700,
+                            background: '#e5e7eb', border: 'none', borderRadius: 6,
+                            cursor: 'pointer', lineHeight: 1
+                          }}
+                        >−</button>
+                        <span style={{
+                          minWidth: 28, textAlign: 'center', fontSize: 15,
+                          fontWeight: 700, color: '#111827'
+                        }}>{item.qty}</span>
+                        <button
+                          onClick={() => setMicroPreview(prev => prev.map((p, idx) =>
+                            idx === i ? { ...p, qty: p.qty + 1 } : p
+                          ))}
+                          style={{
+                            width: 28, height: 28, padding: 0, fontSize: 18, fontWeight: 700,
+                            background: '#e5e7eb', border: 'none', borderRadius: 6,
+                            cursor: 'pointer', lineHeight: 1
+                          }}
+                        >+</button>
+                        <button
+                          onClick={() => setMicroPreview(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{
+                            width: 28, height: 28, padding: 0, fontSize: 14,
+                            background: '#fee2e2', border: '1px solid #fecaca',
+                            borderRadius: 6, cursor: 'pointer', lineHeight: 1
+                          }}
+                          title="Eliminar línea"
+                        >🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {microPreview.some(i => i.matched) && (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                    padding: '12px 16px', borderRadius: 10, marginBottom: 16,
+                    border: '1px solid #86efac', textAlign: 'right'
+                  }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#166534' }}>
+                      Total: {microPreview.filter(i => i.matched).reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}€
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => { setShowMicroModal(false); setMicroPreview([]); setMicroRawText(''); }}
+                style={{
+                  flex: 1, padding: '12px 0', fontSize: 14, fontWeight: 600,
+                  background: '#f3f4f6', border: 'none', borderRadius: 10,
+                  cursor: 'pointer', color: '#374151'
+                }}
+              >
+                ❌ Cancelar
+              </button>
+              {microPreview.some(i => i.matched) && (
+                <button
+                  onClick={confirmMicroTicket}
+                  style={{
+                    flex: 2, padding: '12px 0', fontSize: 14, fontWeight: 700,
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                    border: 'none', borderRadius: 10,
+                    cursor: 'pointer', color: '#fff',
+                    boxShadow: '0 4px 12px rgba(124,58,237,0.35)'
+                  }}
+                >
+                  ✅ Añadir al carrito ({microPreview.filter(i => i.matched).reduce((s, i) => s + i.qty, 0)} uds.)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1672,3 +1672,123 @@ exports.notificarNuevoEventoTemporal = functions.https.onCall(async (data, conte
     throw new functions.https.HttpsError('internal', 'Error al enviar notificaciones: ' + error.message);
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// Función programada: notificar cambio de Junta el 1 de agosto
+// Se ejecuta cada año el 1 de agosto a las 09:00 (hora España)
+// ─────────────────────────────────────────────────────────────
+const JUNTAS_DATA = [
+  { num: 1, miembros: ['GOÑI', 'JOSEBA', 'URDIAN', 'IÑAKI MORA'] },
+  { num: 2, miembros: ['JAVILO', 'MIKEL LOPEZ', 'IGOR', 'INA'] },
+  { num: 3, miembros: ['RUBEN VICENTE', 'ANSORENA', 'SENO', 'VICTOR MORA'] },
+  { num: 4, miembros: ['DANI', 'BURZIO', 'GUSI', 'CHIFAS'] },
+  { num: 5, miembros: ['VIDU', 'MIKEL ASTIZ', 'VICTOR MARTIN'] },
+];
+const JUNTAS_BASE_YEAR = 2022; // Junta 1 empezó en agosto de 2022
+
+exports.notificarCambioJunta = functions.pubsub
+  .schedule('0 9 1 8 *') // 1 de agosto a las 09:00
+  .timeZone('Europe/Madrid')
+  .onRun(async () => {
+    console.log('🏛️ Iniciando notificación de cambio de junta...');
+    try {
+      // Calcular junta activa (agosto del año actual = nueva junta)
+      const now = new Date();
+      const year = now.getFullYear();
+      const offset = year - JUNTAS_BASE_YEAR;
+      const juntaIndex = ((offset % JUNTAS_DATA.length) + JUNTAS_DATA.length) % JUNTAS_DATA.length;
+      const juntaActual = JUNTAS_DATA[juntaIndex];
+      const endYear = year + 1;
+
+      // Verificar si los emails están habilitados
+      const configDoc = await admin.firestore().collection('config').doc('global').get();
+      const emailsEnabled = configDoc.exists ? (configDoc.data().emailsEnabled !== false) : true;
+      if (!emailsEnabled) {
+        console.log('⚠️ Emails desactivados. No se enviarán notificaciones de junta.');
+        return null;
+      }
+
+      // Obtener todos los socios (excluir admin)
+      const usersSnapshot = await admin.firestore().collection('users').get();
+      const users = usersSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(u => u.email && u.email !== 'admin@admin.es');
+
+      console.log(`📧 Enviando notificación de Junta ${juntaActual.num} a ${users.length} socios`);
+
+      const transporter = getEmailTransporter();
+      if (!transporter) {
+        console.error('❌ Transporter de email no disponible');
+        return null;
+      }
+
+      const miembrosHTML = juntaActual.miembros
+        .map(m => `<span style="display:inline-block;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;font-weight:700;padding:6px 14px;border-radius:20px;margin:4px;">${m}</span>`)
+        .join('');
+
+      for (let i = 0; i < users.length; i++) {
+        const user = users[i];
+        if (i > 0) await new Promise(r => setTimeout(r, 300));
+        const mailOptions = {
+          from: functions.config().gmail.email,
+          to: user.email,
+          subject: `🏛️ Nueva Junta de la Sociedad ${year}-${endYear}`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb; }
+                .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff; padding: 30px 20px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #fff; padding: 30px; border-radius: 0 0 10px 10px; }
+                .junta-box { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 24px; margin: 20px 0; text-align: center; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #9ca3af; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1 style="margin:0;font-size:28px;">🏛️ Sociedad TPV</h1>
+                  <p style="margin:10px 0 0 0;opacity:0.9;">Cambio de Junta Directiva</p>
+                </div>
+                <div class="content">
+                  <p>Hola <strong>${user.name || user.email}</strong>,</p>
+                  <p>Te informamos que a partir del <strong>1 de agosto de ${year}</strong> entra en funciones la nueva junta directiva de la Sociedad:</p>
+                  <div class="junta-box">
+                    <div style="font-size:36px;margin-bottom:10px;">★</div>
+                    <div style="font-size:22px;font-weight:800;color:#92400e;margin-bottom:6px;">Junta ${juntaActual.num}</div>
+                    <div style="font-size:13px;color:#b45309;margin-bottom:16px;">Agosto ${year} – Julio ${endYear}</div>
+                    <div>${miembrosHTML}</div>
+                  </div>
+                  <p>Puedes consultar el historial completo de juntas en la aplicación.</p>
+                  <div style="text-align:center;margin-top:24px;">
+                    <a href="https://sociedad-tpv.web.app/juntas" style="display:inline-block;padding:14px 28px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">
+                      Ver Juntas en la App
+                    </a>
+                  </div>
+                  <p style="margin-top:30px;">¡Un saludo a todos!</p>
+                </div>
+                <div class="footer">
+                  <p>Email automático — Sociedad TPV</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `
+        };
+        try {
+          await sendEmailWithRetry(transporter, mailOptions);
+          console.log(`✅ Email enviado a ${user.email}`);
+        } catch (err) {
+          console.error(`❌ Error enviando a ${user.email}:`, err.message);
+        }
+      }
+
+      console.log(`🏛️ Notificación de cambio de junta completada. Junta ${juntaActual.num} activa ${year}-${endYear}`);
+      return null;
+    } catch (error) {
+      console.error('Error en notificarCambioJunta:', error);
+      return null;
+    }
+  });

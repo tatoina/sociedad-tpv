@@ -10,6 +10,7 @@ import Socios from "./pages/Socios";
 import Configuracion from "./pages/Configuracion";
 import Perfil from "./pages/Perfil";
 import Eventos from "./pages/Eventos";
+import Juntas from "./pages/Juntas";
 import { auth, fetchUserDoc, logout, uploadUserPhoto, functions } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -624,7 +625,33 @@ export default function App() {
                       👤 Cambiar perfil
                     </button>
 
-                    {/* 7. Sugerencias app */}
+                    {/* 7. Juntas */}
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        nav('/juntas');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        borderBottom: `1px solid ${theme.primary}20`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      🏛️ Juntas
+                    </button>
+
+                    {/* 8. Sugerencias app */}
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
@@ -922,6 +949,12 @@ export default function App() {
                 !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Configuracion user={user} profile={profile} />
               ) : <Navigate to={user ? "/menu" : "/login"} replace />
             } 
+          />
+
+          {/* Juntas - accesible para todos los autenticados */}
+          <Route
+            path="/juntas"
+            element={user ? <Juntas /> : <Navigate to="/login" replace />}
           />
 
           <Route path="*" element={<Navigate to="/" replace />} />
