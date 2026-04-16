@@ -78,21 +78,23 @@ export default function Menu({ user, profile }) {
         Menú Principal
       </h2>
       
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 32,
-        alignItems: 'center'
-      }}>
-        {!profile?.isAdmin && <MenuItem to="/tpv" icon="🛍️" label="TPV" />}
-        {!profile?.isAdmin && <MenuItem to="/eventos" icon="📅" label="Eventos" />}
-        {!profile?.isAdmin && <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" />}
-        <MenuItem to="/juntas" icon="🏑" label="Juntas" />
-        {profile?.isAdmin && <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />}
-        {profile?.isAdmin && <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />}
-        {profile?.isAdmin && <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />}
-        {profile?.isAdmin && <MenuItem to="/configuracion" icon="⚙️" label="Configuración" isAdmin />}
-      </div>
+      {!profile?.isAdmin ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, justifyItems: 'center' }}>
+          <MenuItem to="/tpv" icon="🛍️" label="TPV" />
+          <MenuItem to="/eventos" icon="📅" label="Eventos" />
+          <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" />
+          <MenuItem to="/juntas" icon="🏑" label="Juntas" />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, justifyItems: 'center' }}>
+          <MenuItem to="/juntas" icon="🏑" label="Juntas" isAdmin={false} />
+          <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />
+          <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" isAdmin />
+          <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />
+          <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />
+          <MenuItem to="/configuracion" icon="⚙️" label="Configuración" isAdmin />
+        </div>
+      )}
       
       <div style={{
         marginTop: 'auto',

@@ -155,7 +155,7 @@ export default function Listados({ user }) {
                     >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 4 }}>
-                          {index + 1}. {reg.userName || reg.userEmail}
+                          {index + 1}. {reg.userAlias || reg.userName || reg.userEmail}
                         </div>
                         <div style={{ fontSize: 14, color: '#6b7280' }}>
                           {reg.fecha && (
@@ -377,7 +377,7 @@ export default function Listados({ user }) {
                     >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 4 }}>
-                          {index + 1}. {reg.userName || reg.userEmail}
+                          {index + 1}. {reg.userAlias || reg.userName || reg.userEmail}
                         </div>
                         
                         {/* RESERVAR MESA */}

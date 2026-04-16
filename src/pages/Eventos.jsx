@@ -1,6 +1,6 @@
 // src/pages/Eventos.jsx
 import React, { useState, useEffect } from 'react';
-import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType, getGlobalConfig, addTemporaryEvent, getTemporaryEvents } from '../firebase';
+import { addEventRegistration, getUserEventRegistrations, getAllEventRegistrations, updateEventRegistration, deleteEventRegistration, deleteAllEventRegistrationsByType, getGlobalConfig, addTemporaryEvent, getTemporaryEvents, getAllSocios } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
@@ -39,6 +39,11 @@ export default function Eventos({ user, profile }) {
   const [newEventTitulo, setNewEventTitulo] = useState('');
   const [newEventFecha, setNewEventFecha] = useState('');
   const [newEventTipoComida, setNewEventTipoComida] = useState('COMIDA');
+
+  // Estados para "apuntar a otro de mi parte"
+  const [showApuntarOtroModal, setShowApuntarOtroModal] = useState(false);
+  const [apuntarUsuarios, setApuntarUsuarios] = useState([]);
+  const [apuntarSelectedUserId, setApuntarSelectedUserId] = useState('');
   
   const nav = useNavigate();
 
@@ -331,6 +336,7 @@ export default function Eventos({ user, profile }) {
         uid: user.uid,
         userEmail: user.email,
         userName: profile?.name || user.email,
+        userAlias: profile?.alias || '',
         eventType,
         fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(eventType) ? null : fecha,
         hora: hora || null,
@@ -452,6 +458,56 @@ export default function Eventos({ user, profile }) {
     setTextoCena(reg.textoCena || '');
     setTipoComida(reg.tipoComida || 'CENA');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenApuntarOtro = async () => {
+    try {
+      const users = await getAllSocios();
+      // Excluir al propio usuario
+      setApuntarUsuarios(users.filter(u => u.id !== user.uid));
+      setApuntarSelectedUserId('');
+      setShowApuntarOtroModal(true);
+    } catch (err) {
+      console.error('Error cargando usuarios:', err);
+      alert('Error al cargar usuarios');
+    }
+  };
+
+  const handleConfirmApuntarOtro = async () => {
+    if (!apuntarSelectedUserId) { alert('Selecciona un usuario'); return; }
+    const selectedUser = apuntarUsuarios.find(u => u.id === apuntarSelectedUserId);
+    if (!selectedUser) return;
+
+    setShowApuntarOtroModal(false);
+    setLoading(true);
+    try {
+      const apuntadorAlias = profile?.alias || profile?.name || user.email;
+      const registrationData = {
+        uid: selectedUser.id,
+        userEmail: selectedUser.email || '',
+        userName: selectedUser.name || selectedUser.email || '',
+        userAlias: selectedUser.alias || '',
+        eventType,
+        fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(eventType) ? null : fecha,
+        hora: hora || null,
+        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
+        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
+        comensales: eventType === 'RESERVAR MESA' ? Number(comensales) : 0,
+        observaciones: eventType === 'RESERVAR MESA' ? observaciones : '',
+        decimos: eventType === 'LOTERIA NAVIDAD' ? Number(decimos) : 0,
+        diaSemana: eventType === 'FIESTAS DE ESTELLA' ? getDayOfWeek(fecha) : '',
+        tipoComida: eventType === 'CUMPLEAÑOS MES' ? tipoEventoConfig : (eventType === 'FIESTAS DE ESTELLA' || eventType.startsWith('TEMP_') ? tipoComida : ''),
+        apuntadoPor: apuntadorAlias
+      };
+      await addEventRegistration(registrationData);
+      alert(`✅ ${selectedUser.alias || selectedUser.name} apuntado correctamente de tu parte`);
+      loadRegistrations();
+    } catch (err) {
+      console.error('Error apuntando usuario:', err);
+      alert('Error al apuntar al usuario');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -996,7 +1052,7 @@ export default function Eventos({ user, profile }) {
             {/* Botones - solo mostrar si hay evento seleccionado */}
             {eventType && (
               <>
-                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
                   <button
                     type="submit"
                     disabled={loading}
@@ -1015,6 +1071,27 @@ export default function Eventos({ user, profile }) {
                   >
                     {loading ? 'Guardando...' : (editingId ? 'Actualizar' : 'Inscribirse')}
                   </button>
+                  {!editingId && eventType !== 'RESERVAR MESA' && eventType !== 'LOTERIA NAVIDAD' && (
+                    <button
+                      type="button"
+                      onClick={handleOpenApuntarOtro}
+                      disabled={loading}
+                      style={{
+                        padding: '14px 20px',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: loading ? 'wait' : 'pointer',
+                        opacity: loading ? 0.7 : 1,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      👤 Apuntar a otro de mi parte
+                    </button>
+                  )}
                   {editingId && (
                     <button
                       type="button"
@@ -1232,6 +1309,13 @@ export default function Eventos({ user, profile }) {
                                   )}
                                 </>
                               )}
+
+                              {/* Apuntado por */}
+                              {reg.apuntadoPor && (
+                                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 6, fontStyle: 'italic' }}>
+                                  👤 Apuntado por {reg.apuntadoPor}
+                                </div>
+                              )}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                               <button
@@ -1420,6 +1504,55 @@ export default function Eventos({ user, profile }) {
                 }}
               >
                 {loading ? 'Creando...' : 'Crear Evento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Apuntar a otro de mi parte */}
+      {showApuntarOtroModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff', padding: 32, borderRadius: 16,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', maxWidth: 420,
+            width: '90%'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              👤 Apuntar a otro de mi parte
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: 13, color: '#6b7280' }}>
+              La inscripción quedará a nombre del usuario seleccionado, con una nota indicando que la hiciste tú.
+            </p>
+            <div>
+              <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 13, color: '#374151' }}>Usuario</label>
+              <select
+                value={apuntarSelectedUserId}
+                onChange={(e) => setApuntarSelectedUserId(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '2px solid #d1d5db', borderRadius: 8, background: '#fff', boxSizing: 'border-box' }}
+              >
+                <option value="">-- Selecciona un usuario --</option>
+                {apuntarUsuarios.map(u => (
+                  <option key={u.id} value={u.id}>{u.alias || u.name || u.email}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
+              <button
+                onClick={() => setShowApuntarOtroModal(false)}
+                style={{ padding: '10px 20px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmApuntarOtro}
+                style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                ✅ Apuntar
               </button>
             </div>
           </div>

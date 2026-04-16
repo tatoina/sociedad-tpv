@@ -1,6 +1,6 @@
 // src/pages/Listados.jsx
 import React, { useState, useEffect } from 'react';
-import { getAllEventRegistrations, deleteAllEventRegistrationsByType, getTemporaryEvents, deleteTemporaryEvent } from '../firebase';
+import { getAllEventRegistrations, deleteAllEventRegistrationsByType, getTemporaryEvents, deleteTemporaryEvent, updateEventRegistration, deleteEventRegistration, addEventRegistration, getAllSocios } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
@@ -62,7 +62,7 @@ const EVENT_TYPES = [
   'COTILLON DE REYES'
 ];
 
-export default function Listados({ user }) {
+export default function Listados({ user, profile }) {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [allRegistrations, setAllRegistrations] = useState([]);
   const [filteredRegistrations, setFilteredRegistrations] = useState([]);
@@ -83,6 +83,30 @@ export default function Listados({ user }) {
   
   const nav = useNavigate();
   const isMobile = useIsMobile();
+
+  // Estados para edición admin
+  const [editingReg, setEditingReg] = useState(null);
+  const [editAdultos, setEditAdultos] = useState(0);
+  const [editNinos, setEditNinos] = useState(0);
+  const [editComensales, setEditComensales] = useState(0);
+  const [editDecimos, setEditDecimos] = useState(0);
+  const [editFecha, setEditFecha] = useState('');
+  const [editHora, setEditHora] = useState('');
+  const [editObservaciones, setEditObservaciones] = useState('');
+  const [editTipoComida, setEditTipoComida] = useState('');
+
+  // Estados para añadir inscripción (admin)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addUsers, setAddUsers] = useState([]);
+  const [addSelectedUserId, setAddSelectedUserId] = useState('');
+  const [addAdultos, setAddAdultos] = useState(1);
+  const [addNinos, setAddNinos] = useState(0);
+  const [addComensales, setAddComensales] = useState(1);
+  const [addDecimos, setAddDecimos] = useState(1);
+  const [addFecha, setAddFecha] = useState('');
+  const [addHora, setAddHora] = useState('');
+  const [addObservaciones, setAddObservaciones] = useState('');
+  const [addTipoComida, setAddTipoComida] = useState('COMIDA');
 
   useEffect(() => {
     if (user?.uid) {
@@ -147,6 +171,149 @@ export default function Listados({ user }) {
       setTemporaryEvents(events);
     } catch (err) {
       console.error('Error cargando eventos temporales:', err);
+    }
+  };
+
+  const getDayOfWeek = (dateString) => {
+    if (!dateString) return '';
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const date = new Date(dateString + 'T00:00:00');
+    return days[date.getDay()];
+  };
+
+  const handleStartEdit = (reg) => {
+    setEditingReg(reg);
+    setEditAdultos(reg.adultos || 0);
+    setEditNinos(reg.ninos || 0);
+    setEditComensales(reg.comensales || 0);
+    setEditDecimos(reg.decimos || 0);
+    setEditFecha(reg.fecha || '');
+    setEditHora(reg.hora || '');
+    setEditObservaciones(reg.observaciones || '');
+    setEditTipoComida(reg.tipoComida || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingReg) return;
+    setLoading(true);
+    try {
+      const updated = {
+        uid: editingReg.uid,
+        userEmail: editingReg.userEmail,
+        userName: editingReg.userName,
+        userAlias: editingReg.userAlias,
+        eventType: editingReg.eventType,
+        adultos: Number(editAdultos),
+        ninos: Number(editNinos),
+        comensales: Number(editComensales),
+        decimos: Number(editDecimos),
+        fecha: editFecha || null,
+        hora: editHora || null,
+        observaciones: editObservaciones || '',
+        tipoComida: editTipoComida || '',
+        diaSemana: editFecha ? getDayOfWeek(editFecha) : (editingReg.diaSemana || '')
+      };
+      await updateEventRegistration(editingReg.id, updated);
+      setEditingReg(null);
+      await loadRegistrations();
+    } catch (err) {
+      console.error('Error actualizando inscripción:', err);
+      alert('Error al actualizar la inscripción');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSingleReg = async (reg) => {
+    if (!window.confirm(`¿Eliminar la inscripción de ${reg.userAlias || reg.userName || reg.userEmail}?`)) return;
+    setLoading(true);
+    try {
+      await deleteEventRegistration(reg.id);
+      await loadRegistrations();
+    } catch (err) {
+      console.error('Error eliminando inscripción:', err);
+      alert('Error al eliminar la inscripción');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenAddModal = async () => {
+    try {
+      const users = await getAllSocios();
+      setAddUsers(users);
+      setAddSelectedUserId('');
+      setAddAdultos(1);
+      setAddNinos(0);
+      setAddComensales(1);
+      setAddDecimos(1);
+      setAddHora('');
+      setAddObservaciones('');
+
+      // Pre-rellenar tipo de comida:
+      // Para FIESTAS DE ESTELLA usa selectedTipoComida (el filtro activo)
+      // Para TEMP_ y resto: coge el tipo del primer inscrito visible, o 'COMIDA' por defecto
+      let tipoInicial = 'COMIDA';
+      if (selectedEvent === 'FIESTAS DE ESTELLA') {
+        tipoInicial = selectedTipoComida || 'COMIDA';
+      } else if (filteredRegistrations.length > 0 && filteredRegistrations[0]?.tipoComida) {
+        tipoInicial = filteredRegistrations[0].tipoComida;
+      } else if (selectedEvent?.startsWith('TEMP_')) {
+        const tempId = selectedEvent.replace('TEMP_', '');
+        const tempEvent = temporaryEvents.find(e => e.id === tempId);
+        tipoInicial = tempEvent?.tipoComida || 'COMIDA';
+      }
+      setAddTipoComida(tipoInicial);
+
+      // Pre-rellenar fecha según el tipo de evento
+      let fechaInicial = '';
+      if (selectedEvent?.startsWith('TEMP_')) {
+        const tempId = selectedEvent.replace('TEMP_', '');
+        const tempEvent = temporaryEvents.find(e => e.id === tempId);
+        if (tempEvent?.fecha) fechaInicial = tempEvent.fecha;
+      } else if (selectedEvent === 'FIESTAS DE ESTELLA' && filteredRegistrations.length > 0) {
+        // Coger la fecha del primer inscrito del día seleccionado
+        fechaInicial = filteredRegistrations[0]?.fecha || '';
+      }
+      setAddFecha(fechaInicial);
+
+      setShowAddModal(true);
+    } catch (err) {
+      console.error('Error cargando usuarios:', err);
+      alert('Error al cargar usuarios');
+    }
+  };
+
+  const handleSaveAdd = async () => {
+    if (!addSelectedUserId) { alert('Selecciona un usuario'); return; }
+    const selectedUser = addUsers.find(u => u.id === addSelectedUserId);
+    if (!selectedUser) return;
+    setLoading(true);
+    try {
+      const registrationData = {
+        uid: selectedUser.id,
+        userEmail: selectedUser.email || '',
+        userName: selectedUser.name || selectedUser.email || '',
+        userAlias: selectedUser.alias || '',
+        eventType: selectedEvent,
+        fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(selectedEvent) ? null : (addFecha || null),
+        hora: selectedEvent === 'RESERVAR MESA' ? (addHora || null) : null,
+        adultos: ['RESERVAR MESA', 'LOTERIA NAVIDAD'].includes(selectedEvent) ? 0 : Number(addAdultos),
+        ninos: ['RESERVAR MESA', 'LOTERIA NAVIDAD'].includes(selectedEvent) ? 0 : Number(addNinos),
+        comensales: selectedEvent === 'RESERVAR MESA' ? Number(addComensales) : 0,
+        observaciones: selectedEvent === 'RESERVAR MESA' ? addObservaciones : '',
+        decimos: selectedEvent === 'LOTERIA NAVIDAD' ? Number(addDecimos) : 0,
+        diaSemana: selectedEvent === 'FIESTAS DE ESTELLA' ? getDayOfWeek(addFecha) : '',
+        tipoComida: (selectedEvent === 'FIESTAS DE ESTELLA' || selectedEvent === 'CUMPLEAÑOS MES' || selectedEvent?.startsWith('TEMP_')) ? addTipoComida : ''
+      };
+      await addEventRegistration(registrationData);
+      setShowAddModal(false);
+      await loadRegistrations();
+    } catch (err) {
+      console.error('Error añadiendo inscripción:', err);
+      alert('Error al añadir la inscripción');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -859,6 +1026,29 @@ export default function Listados({ user }) {
               )}
 
               {/* Botón BORRAR INSCRIPCIONES - Solo visible si hay registros */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {profile?.isAdmin && selectedEvent && (
+                <button
+                  onClick={handleOpenAddModal}
+                  disabled={loading}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: isMobile ? '8px 12px' : '10px 18px',
+                    borderRadius: '8px',
+                    fontSize: isMobile ? 12 : 14,
+                    fontWeight: 700,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  ➕ Añadir inscrito
+                </button>
+              )}
               {selectedEvent && filteredRegistrations.length > 0 && (
                 <button
                   onClick={selectedEvent === 'CUMPLEAÑOS MES' ? handleBorrarCumpleanosMes : handleDeleteAllRegistrations}
@@ -894,6 +1084,7 @@ export default function Listados({ user }) {
                   🗑️ {loading ? 'BORRANDO...' : 'BORRAR INSCRIPCIONES'}
                 </button>
               )}
+              </div>
             </div>
 
             {/* Vista MÓVIL - Tabla compacta para RESERVAR MESA y CUMPLEAÑOS MES, Cards para otros */}
@@ -918,6 +1109,7 @@ export default function Listados({ user }) {
                         <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Hora</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Comensales</th>
                         <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Observaciones</th>
+                        {profile?.isAdmin && <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Act.</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -933,7 +1125,8 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.apuntadoPor && <div style={{ fontSize: 8, color: '#7c3aed', fontStyle: 'italic' }}>👤 {reg.apuntadoPor}</div>}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -958,6 +1151,12 @@ export default function Listados({ user }) {
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8, maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {reg.observaciones || '-'}
                           </td>
+                          {profile?.isAdmin && (
+                            <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                              <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -983,6 +1182,7 @@ export default function Listados({ user }) {
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Niños</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Total</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Tipo</th>
+                        {profile?.isAdmin && <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Act.</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -998,7 +1198,7 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1026,6 +1226,12 @@ export default function Listados({ user }) {
                           }}>
                             {reg.tipoComida === 'COMIDA' ? '🌞' : '🌙'}
                           </td>
+                          {profile?.isAdmin && (
+                            <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                              <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1065,7 +1271,7 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1084,6 +1290,12 @@ export default function Listados({ user }) {
                           <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 700, color: '#059669', fontSize: 10 }}>
                             {(reg.adultos || 0) + (reg.ninos || 0)}
                           </td>
+                          {profile?.isAdmin && (
+                            <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                              <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1123,7 +1335,7 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1172,6 +1384,7 @@ export default function Listados({ user }) {
                           <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Niños</th>
                           <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Tipo</th>
                           <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Total</th>
+                          {profile?.isAdmin && <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Act.</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1187,7 +1400,7 @@ export default function Listados({ user }) {
                               {index + 1}
                             </td>
                             <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                              {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                              {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                             </td>
                             <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#1976d2', fontSize: 10 }}>
                               {reg.adultos || 0}
@@ -1207,6 +1420,12 @@ export default function Listados({ user }) {
                             <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 700, color: '#059669', fontSize: 10 }}>
                               {(reg.adultos || 0) + (reg.ninos || 0)}
                             </td>
+                            {profile?.isAdmin && (
+                              <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                                <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -1332,6 +1551,7 @@ export default function Listados({ user }) {
                         <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Usuario</th>
                         <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Fecha Insc.</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Décimos</th>
+                        {profile?.isAdmin && <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Act.</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1347,7 +1567,7 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1360,6 +1580,12 @@ export default function Listados({ user }) {
                           <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#059669', fontSize: 10 }}>
                             {reg.decimos || 0}
                           </td>
+                          {profile?.isAdmin && (
+                            <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                              <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1384,6 +1610,7 @@ export default function Listados({ user }) {
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Adultos</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Niños</th>
                         <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Total</th>
+                        {profile?.isAdmin && <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Act.</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1399,7 +1626,7 @@ export default function Listados({ user }) {
                             {index + 1}
                           </td>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
+                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
                           </td>
                           <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1418,6 +1645,12 @@ export default function Listados({ user }) {
                           <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 700, color: '#059669', fontSize: 10 }}>
                             {(reg.adultos || 0) + (reg.ninos || 0)}
                           </td>
+                          {profile?.isAdmin && (
+                            <td style={{ padding: '4px 2px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9, marginRight: 2 }}>✏️</button>
+                              <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1462,8 +1695,9 @@ export default function Listados({ user }) {
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 15, color: '#111827' }}>
-                            {reg.userName || reg.userEmail}
+                            {reg.userAlias || reg.userName || reg.userEmail}
                           </div>
+                          {reg.apuntadoPor && <div style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic', marginTop: 2 }}>👤 Apuntado por {reg.apuntadoPor}</div>}
                           <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                             {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
                               day: '2-digit',
@@ -1518,6 +1752,12 @@ export default function Listados({ user }) {
                               {(reg.adultos || 0) + (reg.ninos || 0)}
                             </div>
                           </div>
+                        </div>
+                      )}
+                      {profile?.isAdmin && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                          <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>✏️ Editar</button>
+                          <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🗑️ Borrar</button>
                         </div>
                       )}
                     </div>
@@ -1647,6 +1887,7 @@ export default function Listados({ user }) {
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Adultos</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Niños</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Total</th>
+                              {profile?.isAdmin && <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Acciones</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -1660,7 +1901,8 @@ export default function Listados({ user }) {
                               >
                                 <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1976d2' }}>{index + 1}</td>
                                 <td style={{ padding: '12px 16px', fontWeight: 500, color: '#111827' }}>
-                                  {reg.userName || reg.userEmail}
+                                  {reg.userAlias || reg.userName || reg.userEmail}
+                                  {reg.apuntadoPor && <div style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic' }}>👤 {reg.apuntadoPor}</div>}
                                 </td>
                                 <td style={{ padding: '12px 16px', color: '#6b7280' }}>
                                   {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1688,6 +1930,12 @@ export default function Listados({ user }) {
                                 }}>
                                   {(reg.adultos || 0) + (reg.ninos || 0)}
                                 </td>
+                                {profile?.isAdmin && (
+                                  <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12, marginRight: 4 }}>✏️</button>
+                                    <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12 }}>🗑️</button>
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -1723,7 +1971,8 @@ export default function Listados({ user }) {
                       <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Adultos</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Niños</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Tipo</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, borderRadius: '0 8px 0 0' }}>Total</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Total</th>
+                      {profile?.isAdmin && <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, borderRadius: '0 8px 0 0' }}>Acciones</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1737,7 +1986,8 @@ export default function Listados({ user }) {
                       >
                         <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1976d2' }}>{index + 1}</td>
                         <td style={{ padding: '12px 16px', fontWeight: 500, color: '#111827' }}>
-                          {reg.userName || reg.userEmail}
+                          {reg.userAlias || reg.userName || reg.userEmail}
+                          {reg.apuntadoPor && <div style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic' }}>👤 {reg.apuntadoPor}</div>}
                         </td>
                         <td style={{ padding: '12px 16px', color: '#6b7280' }}>
                           {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -1774,6 +2024,12 @@ export default function Listados({ user }) {
                         }}>
                           {(reg.adultos || 0) + (reg.ninos || 0)}
                         </td>
+                        {profile?.isAdmin && (
+                          <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <button onClick={() => handleStartEdit(reg)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12, marginRight: 4 }}>✏️</button>
+                            <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12 }}>🗑️</button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1922,8 +2178,11 @@ export default function Listados({ user }) {
                       <>
                         <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Adultos</th>
                         <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Niños</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, borderRadius: '0 8px 0 0' }}>Total</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>Total</th>
                       </>
+                    )}
+                    {profile?.isAdmin && (
+                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, borderRadius: '0 8px 0 0' }}>Acciones</th>
                     )}
                   </tr>
                 </thead>
@@ -1938,7 +2197,8 @@ export default function Listados({ user }) {
                     >
                       <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1976d2' }}>{index + 1}</td>
                       <td style={{ padding: '12px 16px', fontWeight: 500, color: '#111827' }}>
-                        {reg.userName || reg.userEmail}
+                        {reg.userAlias || reg.userName || reg.userEmail}
+                        {reg.apuntadoPor && <div style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic' }}>👤 {reg.apuntadoPor}</div>}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#6b7280' }}>
                         {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
@@ -2042,6 +2302,18 @@ export default function Listados({ user }) {
                           fontSize: 15
                         }}>
                           {(reg.adultos || 0) + (reg.ninos || 0)}
+                        </td>
+                      )}
+                      {profile?.isAdmin && (
+                        <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <button
+                            onClick={() => handleStartEdit(reg)}
+                            style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13, marginRight: 6 }}
+                          >✏️ Editar</button>
+                          <button
+                            onClick={() => handleDeleteSingleReg(reg)}
+                            style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}
+                          >🗑️</button>
                         </td>
                       )}
                     </tr>
@@ -2617,6 +2889,244 @@ export default function Listados({ user }) {
                 }}
               >
                 {loading ? 'Borrando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de edición de inscripción (solo admin) */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff', padding: 32, borderRadius: 16,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', maxWidth: 480,
+            width: '90%', maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              ➕ Añadir inscrito — {getEventDisplayName(selectedEvent)}
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Selector de usuario */}
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Usuario</label>
+                <select value={addSelectedUserId} onChange={(e) => setAddSelectedUserId(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, background: '#fff', boxSizing: 'border-box' }}>
+                  <option value="">-- Selecciona un usuario --</option>
+                  {addUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.alias || u.name || u.email}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Fecha (si aplica) */}
+              {!['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(selectedEvent) && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Fecha</label>
+                  <input type="date" value={addFecha} onChange={(e) => setAddFecha(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Hora (solo RESERVAR MESA) */}
+              {selectedEvent === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Hora</label>
+                  <input type="time" value={addHora} onChange={(e) => setAddHora(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Comensales (solo RESERVAR MESA) */}
+              {selectedEvent === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Comensales</label>
+                  <input type="number" min="1" value={addComensales} onChange={(e) => setAddComensales(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Observaciones (solo RESERVAR MESA) */}
+              {selectedEvent === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Observaciones</label>
+                  <input type="text" value={addObservaciones} onChange={(e) => setAddObservaciones(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Adultos */}
+              {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Adultos</label>
+                  <input type="number" min="0" value={addAdultos} onChange={(e) => setAddAdultos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Niños */}
+              {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Niños</label>
+                  <input type="number" min="0" value={addNinos} onChange={(e) => setAddNinos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Décimos (solo LOTERIA NAVIDAD) */}
+              {selectedEvent === 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Décimos</label>
+                  <input type="number" min="1" value={addDecimos} onChange={(e) => setAddDecimos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Tipo de comida */}
+              {(selectedEvent === 'FIESTAS DE ESTELLA' || selectedEvent === 'CUMPLEAÑOS MES' || selectedEvent?.startsWith('TEMP_')) && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Tipo</label>
+                  <select value={addTipoComida} onChange={(e) => setAddTipoComida(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, background: '#fff', boxSizing: 'border-box' }}>
+                    <option value="COMIDA">🌞 COMIDA</option>
+                    <option value="CENA">🌙 CENA</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
+              <button
+                onClick={() => setShowAddModal(false)}
+                style={{ padding: '10px 20px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveAdd}
+                disabled={loading}
+                style={{ padding: '10px 20px', background: loading ? '#d1d5db' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
+              >
+                {loading ? 'Guardando...' : '✅ Añadir inscripción'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingReg && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff', padding: 32, borderRadius: 16,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', maxWidth: 480,
+            width: '90%', maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              ✏️ Editar inscripción
+            </h3>
+            <p style={{ marginBottom: 20, color: '#6b7280', fontSize: 14 }}>
+              {editingReg.userAlias || editingReg.userName || editingReg.userEmail} — {editingReg.eventType}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Fecha (si aplica) */}
+              {!['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(editingReg.eventType) && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Fecha</label>
+                  <input type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Hora (solo RESERVAR MESA) */}
+              {editingReg.eventType === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Hora</label>
+                  <input type="time" value={editHora} onChange={(e) => setEditHora(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Comensales (solo RESERVAR MESA) */}
+              {editingReg.eventType === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Comensales</label>
+                  <input type="number" min="1" value={editComensales} onChange={(e) => setEditComensales(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Observaciones (solo RESERVAR MESA) */}
+              {editingReg.eventType === 'RESERVAR MESA' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Observaciones</label>
+                  <input type="text" value={editObservaciones} onChange={(e) => setEditObservaciones(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Adultos (para eventos que lo usan) */}
+              {editingReg.eventType !== 'RESERVAR MESA' && editingReg.eventType !== 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Adultos</label>
+                  <input type="number" min="0" value={editAdultos} onChange={(e) => setEditAdultos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Niños (para eventos que lo usan) */}
+              {editingReg.eventType !== 'RESERVAR MESA' && editingReg.eventType !== 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Niños</label>
+                  <input type="number" min="0" value={editNinos} onChange={(e) => setEditNinos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Décimos (solo LOTERIA NAVIDAD) */}
+              {editingReg.eventType === 'LOTERIA NAVIDAD' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Décimos</label>
+                  <input type="number" min="1" value={editDecimos} onChange={(e) => setEditDecimos(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              {/* Tipo de comida (FIESTAS DE ESTELLA, CUMPLEAÑOS MES, TEMP) */}
+              {(editingReg.eventType === 'FIESTAS DE ESTELLA' || editingReg.eventType === 'CUMPLEAÑOS MES' || editingReg.eventType?.startsWith('TEMP_')) && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: '#374151' }}>Tipo</label>
+                  <select value={editTipoComida} onChange={(e) => setEditTipoComida(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '2px solid #d1d5db', borderRadius: 8, background: '#fff', boxSizing: 'border-box' }}>
+                    <option value="COMIDA">🌞 COMIDA</option>
+                    <option value="CENA">🌙 CENA</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
+              <button
+                onClick={() => setEditingReg(null)}
+                style={{ padding: '10px 20px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={loading}
+                style={{ padding: '10px 20px', background: loading ? '#d1d5db' : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
+              >
+                {loading ? 'Guardando...' : '✅ Guardar cambios'}
               </button>
             </div>
           </div>
