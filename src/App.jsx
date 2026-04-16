@@ -17,7 +17,7 @@ import { httpsCallable } from "firebase/functions";
 import { usePWAInstall } from "./hooks/usePWAInstall";
 
 // Versión de la aplicación
-export const APP_VERSION = "2.7.0";
+export const APP_VERSION = "3.0.0";
 
 // Detectar tipo de dispositivo
 const getDeviceType = () => {
