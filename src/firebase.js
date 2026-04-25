@@ -358,7 +358,7 @@ export async function getAllSocios() {
       ...doc.data()
     }));
     console.log('👥 Todos los users:', allUsers);
-    const socios = allUsers.filter(user => !user.isAdmin && user.email !== "admin@admin");
+    const socios = allUsers.filter(user => !user.isAdmin && user.email !== "admin@admin" && user.email !== "admin@admin.es");
     console.log('✅ Socios filtrados (no admins):', socios);
     return socios;
   } catch (err) {

@@ -10,6 +10,7 @@ const EVENT_TYPES = [
   'CUMPLEAÑOS MES',
   'FIESTAS DE ESTELLA',
   'FERIAS',
+  'VIRGEN DEL PUY',
   'LOTERIA NAVIDAD',
   'COTILLON DE REYES'
 ];
@@ -340,8 +341,8 @@ export default function Eventos({ user, profile }) {
         eventType,
         fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(eventType) ? null : fecha,
         hora: hora || null,
-        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
-        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
+        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
+        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
         comensales: eventType === 'RESERVAR MESA' ? Number(comensales) : 0,
         observaciones: eventType === 'RESERVAR MESA' ? observaciones : '',
         decimos: eventType === 'LOTERIA NAVIDAD' ? Number(decimos) : 0,
@@ -490,8 +491,8 @@ export default function Eventos({ user, profile }) {
         eventType,
         fecha: ['LOTERIA NAVIDAD', 'CUMPLEAÑOS MES'].includes(eventType) ? null : fecha,
         hora: hora || null,
-        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
-        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
+        adultos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(adultos) : 0,
+        ninos: ['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(eventType) || eventType.startsWith('TEMP_') ? Number(ninos) : 0,
         comensales: eventType === 'RESERVAR MESA' ? Number(comensales) : 0,
         observaciones: eventType === 'RESERVAR MESA' ? observaciones : '',
         decimos: eventType === 'LOTERIA NAVIDAD' ? Number(decimos) : 0,
@@ -867,8 +868,8 @@ export default function Eventos({ user, profile }) {
               </>
             )}
 
-            {/* FERIAS: Adultos y Niños */}
-            {eventType === 'FERIAS' && (
+            {/* FERIAS / VIRGEN DEL PUY: Adultos y Niños */}
+            {(eventType === 'FERIAS' || eventType === 'VIRGEN DEL PUY') && (
               <div style={{ display: 'flex', gap: '16px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
@@ -1264,8 +1265,8 @@ export default function Eventos({ user, profile }) {
                                 </>
                               )}
 
-                              {/* FERIAS */}
-                              {reg.eventType === 'FERIAS' && (
+                              {/* FERIAS / VIRGEN DEL PUY */}
+                              {(reg.eventType === 'FERIAS' || reg.eventType === 'VIRGEN DEL PUY') && (
                                 <div style={{ fontSize: 14, color: '#6b7280' }}>
                                   👥 {reg.adultos} adulto{reg.adultos !== 1 ? 's' : ''} • 👶 {reg.ninos} niño{reg.ninos !== 1 ? 's' : ''}
                                 </div>

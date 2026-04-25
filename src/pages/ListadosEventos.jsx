@@ -58,6 +58,7 @@ const EVENT_TYPES = [
   'CUMPLEAÑOS MES',
   'FIESTAS DE ESTELLA',
   'FERIAS',
+  'VIRGEN DEL PUY',
   'LOTERIA NAVIDAD',
   'COTILLON DE REYES'
 ];
@@ -899,8 +900,8 @@ export default function Listados({ user, profile }) {
 
       {!loading && selectedEvent && totals && (
         <>
-          {/* Resumen de totales - Oculto para RESERVAR MESA, CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, LOTERIA NAVIDAD, COTILLON DE REYES y eventos temporales */}
-          {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FIESTAS DE ESTELLA' && selectedEvent !== 'FERIAS' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' && !selectedEvent.startsWith('TEMP_') && (
+          {/* Resumen de totales - Oculto para RESERVAR MESA, CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, VIRGEN DEL PUY, LOTERIA NAVIDAD, COTILLON DE REYES y eventos temporales */}
+          {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FIESTAS DE ESTELLA' && selectedEvent !== 'FERIAS' && selectedEvent !== 'VIRGEN DEL PUY' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' && !selectedEvent.startsWith('TEMP_') && (
           <div style={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             padding: 24,
@@ -1015,7 +1016,7 @@ export default function Listados({ user, profile }) {
               flexWrap: 'wrap',
               gap: 12
             }}>
-              {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FERIAS' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' ? (
+              {selectedEvent !== 'RESERVAR MESA' && selectedEvent !== 'CUMPLEAÑOS MES' && selectedEvent !== 'FERIAS' && selectedEvent !== 'VIRGEN DEL PUY' && selectedEvent !== 'LOTERIA NAVIDAD' && selectedEvent !== 'COTILLON DE REYES' ? (
                 <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 20, fontWeight: 600, color: '#374151' }}>
                   👥 Lista de inscritos
                 </h3>
@@ -1237,8 +1238,8 @@ export default function Listados({ user, profile }) {
                     </tbody>
                   </table>
                 </div>
-              ) : selectedEvent === 'FERIAS' ? (
-                /* Tabla compacta para FERIAS en móvil */
+              ) : (selectedEvent === 'FERIAS' || selectedEvent === 'VIRGEN DEL PUY') ? (
+                /* Tabla compacta para FERIAS / VIRGEN DEL PUY en móvil */
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{
                     width: '100%',
@@ -1296,64 +1297,6 @@ export default function Listados({ user, profile }) {
                               <button onClick={() => handleDeleteSingleReg(reg)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 5px', cursor: 'pointer', fontSize: 9 }}>🗑️</button>
                             </td>
                           )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : selectedEvent === 'FERIAS' ? (
-                /* Tabla compacta para FERIAS en móvil */
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 10
-                  }}>
-                    <thead>
-                      <tr style={{
-                        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-                        color: '#fff'
-                      }}>
-                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>#</th>
-                        <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Usuario</th>
-                        <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 600, fontSize: 9 }}>Fecha Insc.</th>
-                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Adultos</th>
-                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Niños</th>
-                        <th style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, fontSize: 9 }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRegistrations.map((reg, index) => (
-                        <tr
-                          key={reg.id}
-                          style={{
-                            background: index % 2 === 0 ? '#f9fafb' : '#fff',
-                            borderBottom: '1px solid #e5e7eb'
-                          }}
-                        >
-                          <td style={{ padding: '6px 4px', fontWeight: 600, color: '#1976d2', textAlign: 'center', fontSize: 10 }}>
-                            {index + 1}
-                          </td>
-                          <td style={{ padding: '6px 4px', fontWeight: 500, color: '#111827', fontSize: 9 }}>
-                            {reg.userAlias || reg.userName?.split(' ')[0] || reg.userEmail?.split('@')[0]}
-                          </td>
-                          <td style={{ padding: '6px 4px', color: '#6b7280', fontSize: 8 }}>
-                            {reg.createdAt?.toDate ? new Date(reg.createdAt.toDate()).toLocaleString('es-ES', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }).replace(',', '') : '-'}
-                          </td>
-                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#1976d2', fontSize: 10 }}>
-                            {reg.adultos || 0}
-                          </td>
-                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, color: '#7c3aed', fontSize: 10 }}>
-                            {reg.ninos || 0}
-                          </td>
-                          <td style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 700, color: '#059669', fontSize: 10 }}>
-                            {(reg.adultos || 0) + (reg.ninos || 0)}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2144,7 +2087,7 @@ export default function Listados({ user, profile }) {
                       </>
                     )}
 
-                    {['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(selectedEvent) && (
+                    {['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(selectedEvent) && (
                       <>
                         {selectedEvent === 'FIESTAS DE ESTELLA' && (
                           <>
@@ -2224,8 +2167,8 @@ export default function Listados({ user, profile }) {
                         </>
                       )}
 
-                      {/* Datos específicos: CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, COTILLON DE REYES */}
-                      {['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'COTILLON DE REYES'].includes(selectedEvent) && (
+                      {/* Datos específicos: CUMPLEAÑOS MES, FIESTAS DE ESTELLA, FERIAS, VIRGEN DEL PUY, COTILLON DE REYES */}
+                      {['CUMPLEAÑOS MES', 'FIESTAS DE ESTELLA', 'FERIAS', 'VIRGEN DEL PUY', 'COTILLON DE REYES'].includes(selectedEvent) && (
                         <>
                           {selectedEvent === 'FIESTAS DE ESTELLA' && (
                             <>
@@ -2323,8 +2266,8 @@ export default function Listados({ user, profile }) {
             )}
           </div>
 
-          {/* Resumen de totales debajo de la tabla para FERIAS */}
-          {selectedEvent === 'FERIAS' && (
+          {/* Resumen de totales debajo de la tabla para FERIAS / VIRGEN DEL PUY */}
+          {(selectedEvent === 'FERIAS' || selectedEvent === 'VIRGEN DEL PUY') && (
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
