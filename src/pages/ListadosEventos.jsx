@@ -830,8 +830,8 @@ export default function Listados({ user, profile }) {
         </div>
       )}
 
-      {/* Resumen de totales para FIESTAS DE ESTELLA (ocultar cuando es LISTA TOTAL o cuando hay día seleccionado) */}
-      {selectedEvent === 'FIESTAS DE ESTELLA' && totals && !selectedFiestaDay && (
+      {/* Resumen de totales para FIESTAS DE ESTELLA */}
+      {selectedEvent === 'FIESTAS DE ESTELLA' && totals && !loading && (
         <div style={{ marginTop: 20 }}>
           {/* Totales generales */}
           <div style={{
