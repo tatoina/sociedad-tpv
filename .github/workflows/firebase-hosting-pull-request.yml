@@ -17,5 +17,5 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SOCIEDAD_TPV }}
-          projectId: sociedad-tpv
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ABAIGAR_7EF70 }}
+          projectId: abaigar-7ef70

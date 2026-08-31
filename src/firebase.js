@@ -35,14 +35,15 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 
 // --- CONFIG: reemplaza por tu firebaseConfig real si hace falta ---
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyAiinYBnD20OAIs9S_7wetabfQz477Duh4",
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "sociedad-tpv.firebaseapp.com",
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "sociedad-tpv",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "sociedad-tpv.firebasestorage.app",
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "180644630865",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:180644630865:web:a0a2d69c67c5b482c9c370"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyA6tUPjaXmJNpldCSx9vvhOt1JhFltHO0g",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "abaigar-7ef70.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "abaigar-7ef70",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "abaigar-7ef70.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "1052061299761",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:1052061299761:web:b36ded20798fdcb0869110",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-1VWZT9L9DT"
 };
-console.log("FIREBASE CONFIG:", { apiKey: firebaseConfig.apiKey, authDomain: firebaseConfig.authDomain, projectId: firebaseConfig.projectId });
+// console.log("FIREBASE CONFIG:", { apiKey: firebaseConfig.apiKey, authDomain: firebaseConfig.authDomain, projectId: firebaseConfig.projectId });
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -358,7 +359,7 @@ export async function getAllSocios() {
       ...doc.data()
     }));
     console.log('👥 Todos los users:', allUsers);
-    const socios = allUsers.filter(user => !user.isAdmin && user.email !== "admin@admin");
+    const socios = allUsers.filter(user => !user.isAdmin && user.email !== "admin@admin" && user.email !== "admin@admin.es");
     console.log('✅ Socios filtrados (no admins):', socios);
     return socios;
   } catch (err) {

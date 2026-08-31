@@ -5,7 +5,8 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin');
     }
 
     // Users: authenticated users can read all profiles (needed for socios list); can only update their own or admin

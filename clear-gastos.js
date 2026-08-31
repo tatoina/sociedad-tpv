@@ -15,12 +15,12 @@ const { getFirestore, collection, getDocs, deleteDoc, doc } = require('firebase/
 
 // Configuración de Firebase (debe coincidir con src/firebase.js)
 const firebaseConfig = {
-  apiKey: "AIzaSyAiinYBnD20OAIs9S_7wetabfQz477Duh4",
-  authDomain: "sociedad-tpv.firebaseapp.com",
-  projectId: "sociedad-tpv",
-  storageBucket: "sociedad-tpv.appspot.com",
-  messagingSenderId: "180644630865",
-  appId: "1:180644630865:web:a0a2d69c67c5b482c9c370"
+  apiKey: "AIzaSyA6tUPjaXmJNpldCSx9vvhOt1JhFltHO0g",
+  authDomain: "abaigar-7ef70.firebaseapp.com",
+  projectId: "abaigar-7ef70",
+  storageBucket: "abaigar-7ef70.firebasestorage.app",
+  messagingSenderId: "1052061299761",
+  appId: "1:1052061299761:web:b36ded20798fdcb0869110"
 };
 
 async function clearAllGastos() {

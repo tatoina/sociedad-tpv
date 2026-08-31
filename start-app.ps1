@@ -1,2 +1,2 @@
-Set-Location "C:\Users\usuario\Sociedad-TPV"
+Set-Location "C:\Users\usuario\Abaigar"
 npm start

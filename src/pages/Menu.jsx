@@ -3,113 +3,121 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { APP_VERSION } from "../App";
 
-// Detectar tipo de dispositivo
 const getDeviceType = () => {
   const ua = navigator.userAgent;
-  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-    return "📱 Tablet";
-  }
-  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
-    return "📱 Móvil";
-  }
-  return "💻 PC";
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
+  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return "Móvil";
+  return "PC";
 };
 
 export default function Menu({ user, profile }) {
-  const MenuItem = ({ to, icon, label, isAdmin = false }) => (
-    <Link to={to} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <button
+  const MenuItem = ({ to, symbol, label, subtitle, isAdmin = false }) => (
+    <Link to={to} style={{ textDecoration: 'none', display: 'block' }}>
+      <div
         style={{
-          width: '110px',
-          height: '110px',
-          borderRadius: '50%',
-          border: 'none',
-          background: isAdmin 
-            ? 'linear-gradient(135deg, #7b1fa2 0%, #6a1b9a 100%)'
-            : 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-          color: '#fff',
-          cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
-          transition: 'all 0.2s ease',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 4,
-          fontSize: '40px'
+          gap: 16,
+          padding: '16px 18px',
+          background: '#FFFFFF',
+          borderRadius: 4,
+          borderLeft: `3px solid ${isAdmin ? '#5C4228' : '#8B6340'}`,
+          boxShadow: '0 1px 3px rgba(44,31,20,0.07)',
+          transition: 'all 0.18s ease',
+          cursor: 'pointer',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
+          e.currentTarget.style.transform = 'translateX(3px)';
+          e.currentTarget.style.boxShadow = '0 3px 10px rgba(44,31,20,0.13)';
+          e.currentTarget.style.borderLeftColor = isAdmin ? '#3E2B16' : '#5C4228';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.3)';
+          e.currentTarget.style.transform = 'translateX(0)';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(44,31,20,0.07)';
+          e.currentTarget.style.borderLeftColor = isAdmin ? '#5C4228' : '#8B6340';
         }}
       >
-        {icon}
-      </button>
-      <span style={{ 
-        fontSize: '12px', 
-        fontWeight: '600', 
-        color: '#374151',
-        textAlign: 'center'
-      }}>
-        {label}
-      </span>
+        <div style={{
+          width: 42, height: 42, flexShrink: 0,
+          background: isAdmin ? '#F5EFE8' : '#FBF7F3',
+          borderRadius: 3,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22
+        }}>
+          {symbol}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: 17,
+            fontWeight: 700,
+            color: '#2C1F14',
+            lineHeight: 1.2
+          }}>
+            {label}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 12, color: '#8A7E72', marginTop: 2 }}>{subtitle}</div>
+          )}
+        </div>
+        <span style={{ color: '#8B6340', fontSize: 20, fontWeight: 300, lineHeight: 1 }}>›</span>
+      </div>
     </Link>
   );
 
   return (
     <div style={{
-      padding: 20,
+      padding: '28px 20px',
+      maxWidth: 520,
+      margin: '0 auto',
+      minHeight: '100vh',
       display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      minHeight: '100vh'
+      flexDirection: 'column'
     }}>
-      <h2 style={{
-        marginBottom: 40,
-        fontSize: 22,
-        fontWeight: 700,
-        color: '#111827',
-        textAlign: 'center'
-      }}>
-        Menú Principal
-      </h2>
-      
-      {!profile?.isAdmin ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, justifyItems: 'center' }}>
-          <MenuItem to="/tpv" icon="🛍️" label="TPV" />
-          <MenuItem to="/eventos" icon="📅" label="Eventos" />
-          <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" />
-          <MenuItem to="/juntas" icon="🏑" label="Juntas" />
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, justifyItems: 'center' }}>
-          <MenuItem to="/juntas" icon="🏑" label="Juntas" isAdmin={false} />
-          <MenuItem to="/listados-tpv" icon="💰" label="Listados TPV" isAdmin />
-          <MenuItem to="/listados-eventos" icon="📊" label="Listados Eventos" isAdmin />
-          <MenuItem to="/productos" icon="📦" label="Productos" isAdmin />
-          <MenuItem to="/socios" icon="👥" label="Socios" isAdmin />
-          <MenuItem to="/configuracion" icon="⚙️" label="Configuración" isAdmin />
-        </div>
-      )}
-      
+      {/* Cabecera sección */}
+      <div style={{ marginBottom: 28, paddingBottom: 18, borderBottom: '1px solid #E8DDD5' }}>
+        <h2 style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 26,
+          fontWeight: 700,
+          color: '#2C1F14',
+          margin: '0 0 4px'
+        }}>
+          Menú Principal
+        </h2>
+        <p style={{ margin: 0, fontSize: 13, color: '#8A7E72' }}>
+          {profile?.name ? `Bienvenido, ${profile.name}` : 'Bienvenido'}
+        </p>
+      </div>
+
+      {/* Elementos de menú */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {!profile?.isAdmin ? (
+          <>
+            <MenuItem to="/eventos"         symbol="🍽️"  label="Eventos"         subtitle="Inscríbete a los próximos eventos" />
+            <MenuItem to="/listados-eventos" symbol="📋"  label="Listados"        subtitle="Consulta asistentes por evento" />
+          </>
+        ) : (
+          <>
+            <MenuItem to="/listados-eventos" symbol="📋"  label="Listados de Eventos" subtitle="Consulta y gestiona asistentes" isAdmin />
+            <MenuItem to="/productos"        symbol="🧾"  label="Productos"           subtitle="Gestión del catálogo" isAdmin />
+            <MenuItem to="/socios"           symbol="👤"  label="Socios"              subtitle="Gestión de miembros" isAdmin />
+            <MenuItem to="/configuracion"    symbol="⚙"  label="Configuración"       subtitle="Ajustes generales" isAdmin />
+          </>
+        )}
+      </div>
+
+      {/* Versión */}
       <div style={{
         marginTop: 'auto',
-        paddingTop: 40,
-        paddingBottom: 20,
+        paddingTop: 32,
+        paddingBottom: 16,
         fontSize: 11,
-        color: '#9ca3af',
+        color: '#B5A898',
         textAlign: 'center',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
+        letterSpacing: '0.5px'
       }}>
-        <span>{getDeviceType()}</span>
-        <span>•</span>
-        <span>v{APP_VERSION}</span>
+        {getDeviceType()} · v{APP_VERSION}
       </div>
     </div>
   );

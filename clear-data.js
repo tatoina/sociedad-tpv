@@ -26,7 +26,7 @@
 const admin = require('firebase-admin');
 
 // Configuración de Firebase Admin
-const projectId = process.env.REACT_APP_FIREBASE_PROJECT_ID || "sociedad-tpv";
+const projectId = process.env.REACT_APP_FIREBASE_PROJECT_ID || "abaigar-7ef70";
 
 // Colecciones disponibles para borrar
 const AVAILABLE_COLLECTIONS = {

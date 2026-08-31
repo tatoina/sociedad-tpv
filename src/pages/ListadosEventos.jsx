@@ -53,14 +53,7 @@ const BackButton = ({ onClick }) => (
   </button>
 );
 
-const EVENT_TYPES = [
-  'RESERVAR MESA',
-  'CUMPLEAÑOS MES',
-  'FIESTAS DE ESTELLA',
-  'FERIAS',
-  'LOTERIA NAVIDAD',
-  'COTILLON DE REYES'
-];
+
 
 export default function Listados({ user, profile }) {
   const [selectedEvent, setSelectedEvent] = useState('');
@@ -612,25 +605,19 @@ export default function Listados({ user, profile }) {
           }}
         >
           <option value="">-- Selecciona un evento --</option>
-          {EVENT_TYPES.map(type => (
-            <option key={type} value={type}>{type}</option>
+          {temporaryEvents.map(event => (
+            <option key={event.id} value={`TEMP_${event.id}`}>
+              {event.fijo ? '📌 ' : ''}{event.titulo} - {event.fecha} ({event.tipoComida})
+            </option>
           ))}
-          {temporaryEvents.length > 0 && (
-            <>
-              <option value="" disabled style={{ borderTop: '2px solid #ccc', marginTop: '4px' }}>──────────────</option>
-              <option value="" disabled style={{ fontWeight: 'bold' }}>EVENTOS TEMPORALES:</option>
-              {temporaryEvents.map(event => (
-                <option key={event.id} value={`TEMP_${event.id}`}>
-                  {event.titulo} - {event.fecha} ({event.tipoComida})
-                </option>
-              ))}
-            </>
-          )}
         </select>
       </div>
 
-      {/* Botón de borrar evento temporal */}
-      {selectedEvent && selectedEvent.startsWith('TEMP_') && (
+      {/* Botón de borrar evento temporal (solo si NO es fijo) */}
+      {selectedEvent && selectedEvent.startsWith('TEMP_') && (() => {
+        const ev = temporaryEvents.find(e => `TEMP_${e.id}` === selectedEvent);
+        if (!ev || ev.fijo) return null;
+        return (
         <div style={{
           background: '#fee2e2',
           padding: 20,
@@ -678,7 +665,8 @@ export default function Listados({ user, profile }) {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Selector de día para FIESTAS DE ESTELLA */}
       {selectedEvent === 'FIESTAS DE ESTELLA' && (

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Menu from "./pages/Menu";
-import TPV from "./pages/Tpv";
 import ListadosEventos from "./pages/ListadosEventos";
 import ListadosTPV from "./pages/ListadosTPV";
 import Productos from "./pages/Productos";
@@ -10,7 +9,7 @@ import Socios from "./pages/Socios";
 import Configuracion from "./pages/Configuracion";
 import Perfil from "./pages/Perfil";
 import Eventos from "./pages/Eventos";
-import Juntas from "./pages/Juntas";
+
 import { auth, fetchUserDoc, logout, uploadUserPhoto, functions } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -44,7 +43,7 @@ const clearAppCache = async () => {
     }
     
     // Limpiar localStorage excepto tema
-    const savedTheme = localStorage.getItem('app-theme');
+    const savedTheme = null;
     localStorage.clear();
     if (savedTheme) {
       localStorage.setItem('app-theme', savedTheme);
@@ -74,26 +73,14 @@ const checkVersion = () => {
   return false;
 };
 
-// Temas de colores disponibles
-const THEMES = [
-  { name: 'Azul Clásico', primary: '#1976d2', secondary: '#1565c0', bg: '#ffffff', text: '#000000', headerBg: '#f5f5f5' },
-  { name: 'Oscuro', primary: '#212121', secondary: '#424242', bg: '#121212', text: '#ffffff', headerBg: '#1e1e1e' },
-  { name: 'Verde Natura', primary: '#2e7d32', secondary: '#1b5e20', bg: '#f1f8e9', text: '#000000', headerBg: '#dcedc8' },
-  { name: 'Púrpura', primary: '#7b1fa2', secondary: '#4a148c', bg: '#ffffff', text: '#000000', headerBg: '#f3e5f5' },
-  { name: 'Naranja Energía', primary: '#ef6c00', secondary: '#e65100', bg: '#fff3e0', text: '#000000', headerBg: '#ffe0b2' },
-  { name: 'Rojo Pasión', primary: '#c62828', secondary: '#b71c1c', bg: '#ffffff', text: '#000000', headerBg: '#ffebee' },
-  { name: 'Gris Moderno', primary: '#546e7a', secondary: '#37474f', bg: '#eceff1', text: '#000000', headerBg: '#cfd8dc' },
-  { name: 'Turquesa', primary: '#00838f', secondary: '#006064', bg: '#e0f7fa', text: '#000000', headerBg: '#b2ebf2' },
-];
+// Tema fijo Abaigar — Sociedad Gastronómica
+const THEME = { name: 'Abaigar', primary: '#8B6340', secondary: '#5C4228', bg: '#FAF8F5', text: '#2C1F14', headerBg: '#2C1F14' };
 
 export default function App() {
   const [user, setUser] = useState(null); // firebase user
   const [profile, setProfile] = useState(null); // user doc from firestore
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('app-theme');
-    return saved ? JSON.parse(saved) : THEMES[0];
-  });
+  const theme = THEME;
   const [showCamera, setShowCamera] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -218,14 +205,6 @@ export default function App() {
     }
   };
 
-  const changeTheme = () => {
-    const currentIndex = THEMES.findIndex(t => t.name === theme.name);
-    const nextIndex = (currentIndex + 1) % THEMES.length;
-    const newTheme = THEMES[nextIndex];
-    setTheme(newTheme);
-    localStorage.setItem('app-theme', JSON.stringify(newTheme));
-  };
-
   const handleTakePhoto = async (file) => {
     if (!user || !file) return;
     
@@ -253,21 +232,7 @@ export default function App() {
     }
   };
 
-  // Aplicar variables CSS globales basadas en el tema
-  useEffect(() => {
-    document.documentElement.style.setProperty('--primary-bg', theme.primary);
-    document.documentElement.style.setProperty('--primary-color', '#ffffff');
-    document.documentElement.style.setProperty('--secondary-bg', theme.secondary);
-    document.documentElement.style.setProperty('--app-bg', theme.bg);
-    document.documentElement.style.setProperty('--app-text', theme.text);
-    document.documentElement.style.setProperty('--header-bg', theme.headerBg);
-    document.documentElement.style.setProperty('--ghost-border', theme.text === '#ffffff' ? '#555' : '#ccc');
-    // Color para cards - más claro u oscuro según el fondo
-    const cardBg = theme.bg === '#ffffff' ? '#f9f9f9' : (theme.bg === '#121212' ? '#1e1e1e' : theme.bg);
-    document.documentElement.style.setProperty('--card-bg', cardBg);
-    document.body.style.backgroundColor = theme.bg;
-    document.body.style.color = theme.text;
-  }, [theme]);
+  // Las variables CSS del tema Abaigar están fijas en index.css
 
   // Cerrar menú de usuario al hacer clic fuera
   useEffect(() => {
@@ -300,7 +265,7 @@ export default function App() {
       {/* Banner de instalación PWA */}
       {isInstallable && !isInstalled && (
         <div style={{ 
-          background: '#1976d2', 
+          background: '#2C1F14', 
           color: '#fff', 
           padding: '12px', 
           display: 'flex', 
@@ -313,7 +278,7 @@ export default function App() {
             onClick={handleInstall}
             style={{ 
               background: '#fff', 
-              color: '#1976d2', 
+              color: '#8B6340', 
               border: 'none',
               padding: '8px 16px',
               borderRadius: '6px',
@@ -331,9 +296,9 @@ export default function App() {
         justifyContent: "space-between", 
         alignItems: "center", 
         padding: '12px 20px',
-        background: theme.headerBg,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        borderBottom: `1px solid ${theme.primary}20`
+        background: '#2C1F14',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.30)',
+        borderBottom: '2px solid #8B6340'
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {user ? (
@@ -431,7 +396,7 @@ export default function App() {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <strong style={{ 
-                      color: theme.text, 
+                      color: '#FFFFFF', 
                       fontSize: 15,
                       fontWeight: 600
                     }}>
@@ -439,8 +404,8 @@ export default function App() {
                     </strong>
                     <span style={{ 
                       fontSize: 18,
-                      color: theme.text,
-                      opacity: 0.5,
+                      color: '#FFFFFF',
+                      opacity: 0.6,
                       transition: 'transform 0.2s ease',
                       transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)'
                     }}>
@@ -488,34 +453,6 @@ export default function App() {
                     >
                       🏠 Menú Principal
                     </button>
-
-                    {/* 2. TPV (solo para no-admin) */}
-                    {!profile?.isAdmin && (
-                      <button
-                        onClick={() => {
-                          setShowUserMenu(false);
-                          nav('/tpv');
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          color: theme.text,
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          borderBottom: `1px solid ${theme.primary}20`
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        🛒 TPV
-                      </button>
-                    )}
 
                     {/* 3. Eventos (solo para no-admin) */}
                     {!profile?.isAdmin && (
@@ -573,32 +510,6 @@ export default function App() {
                       </button>
                     )}
 
-                    {/* 5. Listados TPV */}
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        nav('/listados-tpv');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {profile?.isAdmin ? '📊 Listados TPV' : '📊 Mis Gastos'}
-                    </button>
-
                     {/* 6. Cambiar perfil (incluye foto, contraseña y todos los datos) */}
                     <button
                       onClick={() => {
@@ -623,32 +534,6 @@ export default function App() {
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                       👤 Cambiar perfil
-                    </button>
-
-                    {/* 7. Juntas */}
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        nav('/juntas');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: theme.text,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        borderBottom: `1px solid ${theme.primary}20`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.primary + '20'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      🏛️ Juntas
                     </button>
 
                     {/* 8. Sugerencias app */}
@@ -708,7 +593,7 @@ export default function App() {
             
             </>
           ) : (
-            <span style={{ color: theme.text }}>No autenticado</span>
+            <span style={{ color: '#FFFFFF' }}>No autenticado</span>
           )}
         </div>
         
@@ -716,8 +601,8 @@ export default function App() {
         {user && (
           <div style={{
             fontSize: '11px',
-            color: theme.text,
-            opacity: 0.5,
+            color: '#fff',
+            opacity: 0.7,
             fontWeight: 500,
             marginRight: '12px',
             display: 'flex',
@@ -728,56 +613,6 @@ export default function App() {
             <span>•</span>
             <span>v{APP_VERSION}</span>
           </div>
-        )}
-        
-        {/* Botón ESTILO - tres puntos de colores */}
-        {user && (
-          <button 
-            onClick={changeTheme}
-            style={{
-              background: theme.bg,
-              border: `1px solid ${theme.primary}30`,
-              borderRadius: '20px',
-              width: 40,
-              height: 40,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 3,
-              padding: 0,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              transition: 'all 0.2s ease'
-            }}
-            title={`Cambiar tema (actual: ${theme.name})`}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-            }}
-          >
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#4285F4'
-            }}></div>
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#EA4335'
-            }}></div>
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#FBBC04'
-            }}></div>
-          </button>
         )}
       </header>
 
@@ -876,36 +711,12 @@ export default function App() {
             } 
           />
 
-          {/* TPV solo para no-admin - redirige a perfil si no está completo */}
-          <Route
-            path="/tpv"
-            element={
-              user && !profile?.isAdmin ? (
-                !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <TPV user={user} profile={profile} />
-              ) : <Navigate to={user ? "/menu" : "/login"} replace />
-            }
-          />
-
           {/* Listados Eventos - redirige a perfil si no está completo */}
           <Route 
             path="/listados-eventos" 
             element={
               user ? (
                 !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <ListadosEventos user={user} profile={profile} />
-              ) : <Navigate to="/login" replace />
-            } 
-          />
-
-          {/* Listados TPV - accesible para todos los autenticados, admin ve todos los gastos */}
-          <Route 
-            path="/listados-tpv" 
-            element={
-              user ? (
-                !profile?.isAdmin && !isProfileComplete(profile) ? (
-                  <Navigate to="/perfil" replace />
-                ) : (
-                  <ListadosTPV user={user} profile={profile} />
-                )
               ) : <Navigate to="/login" replace />
             } 
           />
@@ -949,12 +760,6 @@ export default function App() {
                 !isProfileComplete(profile) ? <Navigate to="/perfil" replace /> : <Configuracion user={user} profile={profile} />
               ) : <Navigate to={user ? "/menu" : "/login"} replace />
             } 
-          />
-
-          {/* Juntas - accesible para todos los autenticados */}
-          <Route
-            path="/juntas"
-            element={user ? <Juntas /> : <Navigate to="/login" replace />}
           />
 
           <Route path="*" element={<Navigate to="/" replace />} />

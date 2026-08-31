@@ -96,264 +96,165 @@ export default function Login() {
     } finally { setLoading(false); }
   };
 
-  // Layout requested: vertical order — Email, Contraseña, Entrar (button), Registrarse (button)
-  // For 'registrarse' mode we show additional profile fields above the buttons.
+  // Layout: logo+nombre flotante arriba, card form abajo. Estilo sociedad gastronómica.
+  const labelStyle = {
+    fontSize: 12,
+    fontWeight: 700,
+    marginBottom: 6,
+    display: 'block',
+    color: '#8A7E72',
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px'
+  };
+
   return (
-    <div style={{ 
-      padding: 20, 
-      maxWidth: 480, 
-      margin: "0 auto",
+    <div style={{
       minHeight: '100vh',
+      background: '#FAF8F5',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center'
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px 16px'
     }}>
-      <div style={{
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 32,
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h2 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: 28, 
-          fontWeight: 700, 
-          color: '#111827',
-          textAlign: 'center'
+      {/* Cabecera identidad */}
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <img
+          src="/icons/logoAbaigar.png"
+          alt="Abaigar"
+          style={{
+            width: 88,
+            height: 88,
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 3px 6px rgba(44,31,20,0.18))'
+          }}
+        />
+        <h1 style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 30,
+          fontWeight: 700,
+          color: '#2C1F14',
+          margin: '12px 0 4px'
         }}>
-          {mode === "entrar" ? "Iniciar Sesión" : "Crear Cuenta"}
-        </h2>
+          Abaigar
+        </h1>
         <p style={{
-          margin: '0 0 24px 0',
-          fontSize: 14,
-          color: '#6b7280',
-          textAlign: 'center'
+          fontSize: 11,
+          color: '#8A7E72',
+          margin: 0,
+          letterSpacing: '2.5px',
+          textTransform: 'uppercase'
         }}>
-          {mode === "entrar" 
-            ? "Accede a tu cuenta de la Sociedad" 
-            : "Completa tus datos para registrarte"}
+          Sociedad Gastronómica
+        </p>
+      </div>
+
+      {/* Card formulario */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: 6,
+        padding: '28px 28px 24px',
+        width: '100%',
+        maxWidth: 420,
+        boxShadow: '0 2px 20px rgba(44,31,20,0.10)',
+        border: '1px solid #E8DDD5'
+      }}>
+        <h2 style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          margin: '0 0 4px 0',
+          fontSize: 22,
+          fontWeight: 700,
+          color: '#2C1F14'
+        }}>
+          {mode === 'entrar' ? 'Iniciar sesión' : 'Crear cuenta'}
+        </h2>
+        <p style={{ margin: '0 0 22px 0', fontSize: 13, color: '#8A7E72' }}>
+          {mode === 'entrar' ? 'Accede a tu área personal' : 'Completa tus datos para registrarte'}
         </p>
 
         <form
           onSubmit={mode === "entrar" ? handleLogin : handleRegister}
-          style={{ display: "flex", flexDirection: "column", gap: 16 }}
+          style={{ display: "flex", flexDirection: "column", gap: 14 }}
         >
-          {/* If registering, show name fields above email/password */}
           {mode === "registrarse" && (
             <>
               <div>
-                <label style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  marginBottom: 6, 
-                  display: "block", 
-                  color: "#374151" 
-                }}>
-                  Nombre <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input 
-                  className="full-input" 
-                  name="name" 
-                  value={form.name} 
-                  onChange={onChange} 
-                  placeholder="Tu nombre" 
-                  required 
-                />
+                <label style={labelStyle}>Nombre <span style={{ color: '#c0392b' }}>*</span></label>
+                <input className="full-input" name="name" value={form.name} onChange={onChange} placeholder="Tu nombre" required />
               </div>
-
               <div>
-                <label style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  marginBottom: 6, 
-                  display: "block", 
-                  color: "#374151" 
-                }}>
-                  Apellidos <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input 
-                  className="full-input" 
-                  name="surname" 
-                  value={form.surname} 
-                  onChange={onChange} 
-                  placeholder="Tus apellidos" 
-                  required 
-                />
+                <label style={labelStyle}>Apellidos <span style={{ color: '#c0392b' }}>*</span></label>
+                <input className="full-input" name="surname" value={form.surname} onChange={onChange} placeholder="Tus apellidos" required />
               </div>
-
               <div>
-                <label style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  marginBottom: 6, 
-                  display: "block", 
-                  color: "#374151" 
-                }}>
-                  Fecha de nacimiento <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input 
-                  className="full-input" 
-                  name="dob" 
-                  value={form.dob} 
-                  onChange={onChange} 
-                  type="date" 
-                  required 
-                />
+                <label style={labelStyle}>Fecha de nacimiento <span style={{ color: '#c0392b' }}>*</span></label>
+                <input className="full-input" name="dob" value={form.dob} onChange={onChange} type="date" required />
               </div>
-
               <div>
-                <label style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  marginBottom: 6, 
-                  display: "block", 
-                  color: "#374151" 
-                }}>
-                  Teléfono <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input 
-                  className="full-input" 
-                  name="phone" 
-                  value={form.phone} 
-                  onChange={onChange} 
-                  placeholder="+34 600 000 000" 
-                  type="tel"
-                  required 
-                />
+                <label style={labelStyle}>Teléfono <span style={{ color: '#c0392b' }}>*</span></label>
+                <input className="full-input" name="phone" value={form.phone} onChange={onChange} placeholder="+34 600 000 000" type="tel" required />
               </div>
-            
-              {/* Foto */}
               <div>
-                <label style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  marginBottom: 6, 
-                  display: "block",
-                  color: "#374151"
-                }}>
-                  Foto de perfil
-                </label>
+                <label style={labelStyle}>Foto de perfil</label>
                 {photoPreview && (
-                  <div style={{ marginBottom: 12, textAlign: 'center' }}>
-                    <img 
-                      src={photoPreview} 
-                      alt="Vista previa" 
-                      style={{ 
-                        width: 120, 
-                        height: 120, 
-                        objectFit: "cover", 
-                        borderRadius: '50%',
-                        border: "3px solid #e5e7eb",
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-                      }} 
+                  <div style={{ marginBottom: 10, textAlign: 'center' }}>
+                    <img
+                      src={photoPreview}
+                      alt="Vista previa"
+                      style={{
+                        width: 80, height: 80, objectFit: 'cover',
+                        borderRadius: '50%', border: '2px solid #D4C9BC'
+                      }}
                     />
                   </div>
                 )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="full-input"
-                  style={{ padding: '8px', fontSize: 13 }}
-                />
+                <input type="file" accept="image/*" onChange={handlePhotoChange} className="full-input" style={{ padding: '8px', fontSize: 13 }} />
               </div>
             </>
           )}
 
-          {/* Email and Password fields */}
           <div>
-            <label style={{ 
-              fontSize: 13, 
-              fontWeight: 600, 
-              marginBottom: 6, 
-              display: "block", 
-              color: "#374151" 
-            }}>
-              Email <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input
-              className="full-input"
-              name="email"
-              value={form.email}
-              onChange={onChange}
-              type="email"
-              placeholder="tu@email.com"
-              required
-            />
+            <label style={labelStyle}>Email <span style={{ color: '#c0392b' }}>*</span></label>
+            <input className="full-input" name="email" value={form.email} onChange={onChange} type="email" placeholder="tu@email.com" required />
           </div>
 
           <div>
-            <label style={{ 
-              fontSize: 13, 
-              fontWeight: 600, 
-              marginBottom: 6, 
-              display: "block", 
-              color: "#374151" 
-            }}>
-              Contraseña <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input
-              className="full-input"
-              name="password"
-              value={form.password}
-              onChange={onChange}
-              type="password"
-              placeholder="••••••••"
-              required
-            />
+            <label style={labelStyle}>Contraseña <span style={{ color: '#c0392b' }}>*</span></label>
+            <input className="full-input" name="password" value={form.password} onChange={onChange} type="password" placeholder="••••••••" required />
           </div>
 
-          <button 
-            className="btn-primary full" 
-            type="submit" 
+          <button
+            className="btn-primary full"
+            type="submit"
             disabled={loading}
-            style={{
-              marginTop: 8,
-              padding: '12px 24px',
-              fontSize: 16,
-              fontWeight: 600
-            }}
+            style={{ marginTop: 6, padding: '13px 24px', fontSize: 15, fontWeight: 700, letterSpacing: '0.5px' }}
           >
-            {loading ? '⏳ Cargando...' : (mode === "entrar" ? "Entrar" : "Crear cuenta")}
+            {loading ? 'Cargando...' : (mode === 'entrar' ? 'Entrar' : 'Crear cuenta')}
           </button>
 
-          {/* Botón de restablecer contraseña solo en modo entrar */}
-          {mode === "entrar" && (
+          {mode === 'entrar' && (
             <button
               type="button"
-              className="btn-ghost full"
               onClick={handleResetPassword}
               disabled={loading}
-              style={{ 
-                fontSize: 14, 
-                color: '#1976d2',
-                padding: '8px 16px'
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: '#8B6340', textDecoration: 'underline',
+                padding: '4px 0', textAlign: 'center'
               }}
             >
               ¿Olvidaste tu contraseña?
             </button>
           )}
 
-          {/* Registrarse button below Entrar; toggles mode */}
-          <div style={{
-            marginTop: 8,
-            paddingTop: 16,
-            borderTop: '1px solid #e5e7eb',
-            textAlign: 'center'
-          }}>
+          <div style={{ marginTop: 6, paddingTop: 14, borderTop: '1px solid #EDE4DA', textAlign: 'center' }}>
             <button
               type="button"
-              className="btn-ghost full"
-              onClick={() => setMode(prev => (prev === "entrar" ? "registrarse" : "entrar"))}
+              onClick={() => setMode(prev => (prev === 'entrar' ? 'registrarse' : 'entrar'))}
               disabled={loading}
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                padding: '8px 16px'
-              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#8B6340', fontWeight: 600 }}
             >
-              {mode === "entrar" ? "¿No tienes cuenta? Regístrate aquí" : "¿Ya tienes cuenta? Inicia sesión"}
+              {mode === 'entrar' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
             </button>
           </div>
         </form>

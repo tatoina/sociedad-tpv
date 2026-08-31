@@ -8,7 +8,7 @@
  * 
  * Para ejecutar:
  * 1. Obtén el archivo serviceAccountKey.json de Firebase Console:
- *    https://console.firebase.google.com/project/sociedad-tpv/settings/serviceaccounts/adminsdk
+ *    https://console.firebase.google.com/project/abaigar-7ef70/settings/serviceaccounts/adminsdk
  * 2. Colócalo en la raíz del proyecto
  * 3. Ejecuta: node clear-gastos-admin.js
  */
@@ -24,7 +24,7 @@ try {
   console.error('❌ Error: No se encontró el archivo serviceAccounkey.json');
   console.error('');
   console.error('Para obtener este archivo:');
-  console.error('1. Ve a: https://console.firebase.google.com/project/sociedad-tpv/settings/serviceaccounts/adminsdk');
+  console.error('1. Ve a: https://console.firebase.google.com/project/abaigar-7ef70/settings/serviceaccounts/adminsdk');
   console.error('2. Haz clic en "Generar nueva clave privada"');
   console.error('3. Guarda el archivo como serviceAccounkey.json en la raíz del proyecto');
   console.error('');
@@ -41,7 +41,7 @@ async function clearAllGastos() {
     // Inicializar Firebase Admin
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId: 'sociedad-tpv'
+      projectId: 'abaigar-7ef70'
     });
     
     const db = admin.firestore();

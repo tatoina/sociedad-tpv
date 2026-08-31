@@ -10,11 +10,11 @@ admin.initializeApp();
 // IMPORTANTE: Debes configurar las variables de entorno en Firebase
 // firebase functions:config:set gmail.email="tu-email@gmail.com" gmail.password="tu-app-password"
 const getEmailTransporter = () => {
-  const gmailEmail = functions.config().gmail?.email;
-  const gmailPassword = functions.config().gmail?.password;
+  const gmailEmail = process.env.GMAIL_EMAIL;
+  const gmailPassword = process.env.GMAIL_PASSWORD;
 
   if (!gmailEmail || !gmailPassword) {
-    console.error('Configuración de email no encontrada. Configura con: firebase functions:config:set gmail.email="xxx" gmail.password="xxx"');
+    console.error('Configuración de email no encontrada. Configura GMAIL_EMAIL y GMAIL_PASSWORD en functions/.env');
     return null;
   }
 
@@ -118,7 +118,7 @@ exports.notificarFechaCena = functions.https.onCall(async (data, context) => {
       }
       
       const mailOptions = {
-        from: functions.config().gmail.email,
+        from: process.env.GMAIL_EMAIL,
         to: user.email,
         subject: '📅 Nueva fecha de cena - Cumpleaños del Mes',
         html: `
@@ -309,7 +309,7 @@ exports.notificarInscripcionEvento = functions.https.onCall(async (data, context
     // Preparar email
     const emailPromises = usersWithEmail.map(async (user) => {
       const mailOptions = {
-        from: functions.config().gmail.email,
+        from: process.env.GMAIL_EMAIL,
         to: user.email,
         subject: `📝 Nueva inscripción: ${eventType}`,
         html: `
@@ -648,7 +648,7 @@ exports.generarResumenMensualAutomatico = functions.pubsub
         if (transporter) {
           const emailPromises = usersWithEmail.map(async (user) => {
             const mailOptions = {
-              from: functions.config().gmail.email,
+              from: process.env.GMAIL_EMAIL,
               to: user.email,
               subject: '💰 Resumen de Gastos Mensual Generado - Sociedad TPV',
               html: `
@@ -813,9 +813,9 @@ exports.enviarSugerencia = functions.https.onCall(async (data, context) => {
     }
 
     const mailOptions = {
-      from: functions.config().gmail.email,
+      from: process.env.GMAIL_EMAIL,
       to: 'inaviciba@gmail.com',
-      replyTo: userEmail || functions.config().gmail.email,
+      replyTo: userEmail || process.env.GMAIL_EMAIL,
       subject: `💡 Sugerencia TPV App - ${userName || 'Usuario'}`,
       html: `
         <!DOCTYPE html>
@@ -976,7 +976,7 @@ exports.notificarReservaMesa = functions.https.onCall(async (data, context) => {
     // Preparar emails
     const emailPromises = usersWithEmail.map(async (user) => {
       const mailOptions = {
-        from: functions.config().gmail.email,
+        from: process.env.GMAIL_EMAIL,
         to: user.email,
         subject: `🍽️ Nueva Reserva de Mesa - ${userName}`,
         html: `
@@ -1237,7 +1237,7 @@ exports.notificarInscripcionEventoGeneral = functions.https.onCall(async (data, 
     // Preparar emails
     const emailPromises = usersWithEmail.map(async (user) => {
       const mailOptions = {
-        from: functions.config().gmail.email,
+        from: process.env.GMAIL_EMAIL,
         to: user.email,
         subject: `${emoji} Nueva Inscripción - ${eventTitle}`,
         html: `
@@ -1526,7 +1526,7 @@ exports.notificarNuevoEventoTemporal = functions.https.onCall(async (data, conte
     // Preparar emails
     const emailPromises = usersWithEmail.map(async (user) => {
       const mailOptions = {
-        from: functions.config().gmail.email,
+        from: process.env.GMAIL_EMAIL,
         to: user.email,
         subject: `📅 Nuevo Evento Creado - ${titulo}`,
         html: `
@@ -1730,7 +1730,7 @@ exports.notificarCambioJunta = functions.pubsub
         const user = users[i];
         if (i > 0) await new Promise(r => setTimeout(r, 300));
         const mailOptions = {
-          from: functions.config().gmail.email,
+          from: process.env.GMAIL_EMAIL,
           to: user.email,
           subject: `🏛️ Nueva Junta de la Sociedad ${year}-${endYear}`,
           html: `
